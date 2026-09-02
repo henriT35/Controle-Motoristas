@@ -1,0 +1,43 @@
+{% load static %}
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minha Operação · Painel Motoristas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/app.css' %}?v=0.7.0.0"><script src="https://unpkg.com/lucide@latest" defer></script></head>
+<body class="driver-portal-body"><main class="driver-portal-shell">
+  {% if messages %}<div class="toast-stack">{% for message in messages %}<div class="toast {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  <header class="driver-portal-header"><div><span class="eyebrow">PAINEL MOTORISTAS</span><h1>{{ driver.name }}</h1><p>Sua operação e oportunidades de retirada · {{ selected_date|date:'d/m/Y' }}</p></div><span class="chip chip-cyan"><i data-lucide="shield-check"></i>Acesso individual</span></header>
+  <section class="kpi-grid four">
+    <article class="kpi"><span class="kpi-icon blue"><i data-lucide="route"></i></span><div><span>Rotas hoje</span><strong>{{ cards|length }}</strong></div></article>
+    <article class="kpi success"><span class="kpi-icon green"><i data-lucide="package-check"></i></span><div><span>Entregas hoje</span><strong>{{ delivered_today }}</strong></div><small>Veja cada rota abaixo</small></article>
+    <article class="kpi warning"><span class="kpi-icon amber"><i data-lucide="file-check-2"></i></span><div><span>Oportunidades</span><strong>{{ opportunities|length }}</strong></div><small>Comprovantes na rota/região</small></article>
+    <article class="kpi cyan"><span class="kpi-icon cyan"><i data-lucide="badge-check"></i></span><div><span>Resgatados</span><strong>{{ recovered_count }}</strong></div><small>Histórico confirmado</small></article>
+  </section>
+  <section class="driver-portal-grid">
+    <article class="panel"><div class="panel-heading"><div><div class="panel-title">Rotas de hoje</div><small class="muted">Informação operacional — não altera a rota.</small></div></div>
+      <div class="portal-route-list">{% for c in cards %}<div class="portal-route-card"><div><b>Romaneio {{ c.manifest.number }}</b><small>{{ c.clients }} clientes · {{ c.movements }} CT-es · {{ c.delivered }} entregues</small></div><span>{{ c.weight_kg|floatformat:0 }} kg</span></div>{% empty %}<div class="empty-state">Nenhuma rota atribuída para hoje.</div>{% endfor %}</div>
+    </article>
+    {% if planned_cards %}<article class="panel portal-planning-card"><div class="panel-heading"><div><div class="panel-title">Romaneios preparados</div><small class="muted">Ainda sem data de execução confirmada pela saída para entrega.</small></div><span class="chip chip-warning">PLANEJAMENTO</span></div><div class="portal-route-list">{% for c in planned_cards %}<div class="portal-route-card"><div><b>Romaneio {{ c.manifest.number }}</b><small>Emitido {{ c.manifest.date|date:'d/m' }} · {{ c.clients }} clientes · {{ c.movements }} CT-es</small></div><span>Data não confirmada</span></div>{% endfor %}</div></article>{% endif %}
+    <article class="panel"><div class="panel-heading"><div><div class="panel-title">Comprovantes na sua rota</div><small class="muted">Envie a evidência; o coordenador confirma a baixa.</small></div></div>
+      <div class="portal-proof-list">{% for p in opportunities %}<section class="portal-proof-card"><div class="portal-proof-head"><div><b>{{ p.client.name }}</b><small>{{ p.address.street|default:'Endereço não informado' }}</small><small>{{ p.address.district|default:'Bairro não informado' }} · {{ p.address.city|default:'Cidade não informada' }}</small></div><span class="chip {% if p.opportunity_kind == 'CLIENTE' %}chip-green{% else %}chip-warning{% endif %}">{{ p.opportunity_kind }}</span></div><div class="portal-proof-meta"><span>CTRC <b>{{ p.cte.ctrc }}</b></span><span>Retido há <b>{{ p.days_retained }} dias</b></span><span>Origem <b>{{ p.original_driver.name }}</b></span></div><form method="post" enctype="multipart/form-data" action="{% url 'driver_portal_submit_proof' token p.pk %}" class="portal-upload-form" data-portal-evidence-form>
+          {% csrf_token %}
+          <div class="portal-capture-title"><i data-lucide="camera"></i><span><b>Consegui o comprovante</b><small>Tire uma foto agora ou escolha uma imagem/PDF já salvo.</small></span></div>
+          <div class="portal-evidence-actions">
+            <label class="portal-evidence-button portal-camera-button">
+              <i data-lucide="camera"></i><span><b>Tirar foto</b><small>Abre a câmera traseira</small></span>
+              <input type="file" name="evidence_camera" accept="image/*" capture="environment" data-evidence-input data-evidence-kind="camera">
+            </label>
+            <label class="portal-evidence-button">
+              <i data-lucide="image-plus"></i><span><b>Escolher arquivo</b><small>Galeria, imagem ou PDF</small></span>
+              <input type="file" name="evidence_file" accept="image/*,application/pdf" data-evidence-input data-evidence-kind="file">
+            </label>
+          </div>
+          <div class="portal-evidence-selected" data-evidence-selected>Nenhum arquivo selecionado.</div>
+          <label class="portal-note-label">Observação<input name="note" placeholder="Ex.: retirado no balcão do cliente"></label>
+          <button class="btn btn-primary full" type="submit"><i data-lucide="upload"></i>Enviar para o coordenador validar</button>
+        </form></section>{% empty %}<div class="empty-state"><i data-lucide="circle-check"></i><p>Nenhum comprovante pendente identificado na sua rota de hoje.</p></div>{% endfor %}</div>
+    </article>
+  </section>
+  <article class="panel"><div class="panel-title">Últimos envios</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>CTRC</th><th>Cliente</th><th>Status</th></tr></thead><tbody>{% for s in recent_submissions %}<tr><td>{{ s.submitted_at|date:'d/m/Y H:i' }}</td><td>{{ s.proof.cte.ctrc }}</td><td>{{ s.proof.client.name }}</td><td><span class="chip {% if s.status == 'APPROVED' %}chip-green{% elif s.status == 'REJECTED' %}chip-red{% else %}chip-warning{% endif %}">{{ s.get_status_display }}</span>{% if s.validation_note %}<small class="table-sub">{{ s.validation_note }}</small>{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Nenhum envio ainda.</td></tr>{% endfor %}</tbody></table></div></article>
+  <footer class="driver-portal-footer">Este link é individual. Se ele for compartilhado indevidamente, solicite ao coordenador a regeneração.</footer>
+</main><script>document.addEventListener('DOMContentLoaded',()=>{window.lucide?.createIcons();setTimeout(()=>document.querySelectorAll('.toast').forEach(x=>x.remove()),5000);document.querySelectorAll('[data-portal-evidence-form]').forEach(form=>{const inputs=[...form.querySelectorAll('[data-evidence-input]')];const selected=form.querySelector('[data-evidence-selected]');inputs.forEach(input=>input.addEventListener('change',()=>{if(!input.files||!input.files.length)return;inputs.forEach(other=>{if(other!==input)other.value='';});const file=input.files[0];if(selected)selected.textContent=(input.dataset.evidenceKind==='camera'?'Foto pronta: ':'Arquivo: ')+file.name;}));form.addEventListener('submit',event=>{const hasFile=inputs.some(input=>input.files&&input.files.length);if(!hasFile){event.preventDefault();if(selected){selected.textContent='Tire uma foto ou escolha um arquivo antes de enviar.';selected.classList.add('error');}inputs[0]?.focus();}});});});</script></body></html>

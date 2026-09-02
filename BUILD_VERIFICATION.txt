@@ -1,0 +1,32 @@
+PAINEL MOTORISTAS v0.7.1.1 — BUILD VERIFICATION
+
+Escopo do hotfix: instalador Windows do Baileys / Node portátil.
+
+Executado no ambiente de empacotamento:
+- Python sintaxe: PASS — 179 arquivos
+- JavaScript/whatsapp_bridge server.mjs node --check: PASS
+- scripts/qa/portable_qa.py: PASS — 6/6
+- WhatsApp Baileys static QA: PASS
+- WhatsApp installer static QA: PASS — PATH + npm_node_execpath + limpeza parcial presentes
+- robot_ssw: PASS — 17/17 arquivos idênticos à v0.7.1.0
+- migrations novas: nenhuma; models não alterados
+
+Causa confirmada pelo log Windows recebido:
+- Node portátil foi baixado e executado por caminho absoluto;
+- npm iniciou normalmente;
+- lifecycle script do Baileys chamou `node` pelo shell;
+- tools/node não estava no PATH herdado e o subprocesso abortou.
+
+Não executado neste ambiente:
+- PowerShell Windows real;
+- npm install real no Windows;
+- conexão/QR real do Baileys;
+- manage.py check / makemigrations --check / suíte django.test.
+
+Na instalação Windows:
+1. aplique o patch v0.7.1.1 sobre uma instalação cujo VERSION seja 0.7.1.0;
+2. feche o Painel/bot;
+3. execute INSTALAR_BOT_WHATSAPP.bat novamente;
+4. confirme a linha `PATH: node.exe disponivel (...)`;
+5. confirme `INSTALACAO CONCLUIDA`;
+6. abra WhatsApp Motoristas > Conectar / QR Code > Gerar QR Code.

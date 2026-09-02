@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load query_helpers %}
+{% block title %}Motoristas · Painel Motoristas{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='Motoristas' subtitle='Produtividade e desempenho são analisados separadamente' period_label=period_label %}
+{% include 'components/period_filter.html' %}
+<form class="filter-bar"><input type="hidden" name="start" value="{{ period_start|date:'Y-m-d' }}"><input type="hidden" name="end" value="{{ period_end|date:'Y-m-d' }}">
+  <label>Busca<input name="q" value="{{ q }}" placeholder="Motorista ou CPF"></label>
+  <label>Cidade<select name="city"><option value="">Todas</option>{% for c in cities %}<option value="{{ c }}" {% if selected_city == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+  <label>Status<select name="status">
+    <option value="active" {% if selected_status == 'active' %}selected{% endif %}>Ativos</option>
+    <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Reais · todos</option>
+    <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Inativos</option>
+    {% if request.user.is_staff or request.user.is_superuser %}<option value="test" {% if selected_status == 'test' %}selected{% endif %}>Teste / homologação</option>{% endif %}
+  </select></label>
+  <button class="btn btn-primary" type="submit"><i data-lucide="search"></i>Filtrar</button>
+</form>
+
+<section class="kpi-grid four">
+  <article class="kpi"><span class="kpi-icon blue"><i data-lucide="users"></i></span><div><span>Motoristas ativos</span><strong>{{ active_count }}</strong></div><small>Testes não entram nos indicadores</small></article>
+  <article class="kpi success"><span class="kpi-icon green"><i data-lucide="activity"></i></span><div><span>Qualidade média</span><strong>{{ avg_score|floatformat:1 }}</strong></div><small>Simulação · {{ scored_count }} com atividade · {{ eligible_count }} elegíveis ao ranking</small></article>
+  <article class="kpi cyan"><span class="kpi-icon purple"><i data-lucide="weight"></i></span><div><span>Peso movimentado</span><strong>{{ total_weight_t|floatformat:1 }} t</strong></div></article>
+  <article class="kpi danger"><span class="kpi-icon red"><i data-lucide="lock-keyhole"></i></span><div><span>Valor retido ativo</span><strong>R$ {{ retained_value|floatformat:2 }}</strong></div></article>
+</section>
+
+<section class="drivers-layout">
+  <article class="panel">
+    <div class="panel-heading">
+      <div><div class="panel-title">Desempenho dos Motoristas</div><small class="muted">Ranking ajusta a confiança da amostra sem transformar volume em qualidade.</small></div>
+      <div class="actions">
+        <a class="{% if selected_sort == 'score' %}active{% endif %}" href="{% replace_query sort='score' page=None %}">Desempenho</a>
+        <a class="{% if selected_sort == 'productivity' %}active{% endif %}" href="{% replace_query sort='productivity' page=None %}">Produtividade</a>
+        <a class="{% if selected_sort == 'recoveries' %}active{% endif %}" href="{% replace_query sort='recoveries' page=None %}">Resgates</a>
+        <a class="{% if selected_sort == 'movements' %}active{% endif %}" href="{% replace_query sort='movements' page=None %}">Tentativas</a>
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead><tr>
+      <th>Motorista</th>
+      <th title="Tentativas operacionais: CT-e em um romaneio/tentativa no período.">Tentativas</th>
+      <th title="CT-es efetivamente entregues no período.">Entregas</th>
+      <th>Sucesso</th>
+      <th title="Entrega concluída sem retenção nem ocorrência por horário na tentativa homologada.">Entrega limpa</th>
+      <th>Retenção</th><th>Horário</th><th>Comprovantes</th><th>Resgates</th><th>Qualidade</th><th>Ranking ajustado</th><th>Produtividade</th><th>Confiança</th>
+    </tr></thead><tbody>
+      {% for m in page_obj %}<tr class="{% if not m.eligible %}sample-low-row{% endif %}">
+        <td><a class="person-cell" href="{% url 'driver_detail' m.driver.pk %}?start={{ period_start|date:'Y-m-d' }}&end={{ period_end|date:'Y-m-d' }}"><span class="mini-avatar">{{ m.driver.name|first }}</span><span>{{ m.driver.name }}<small class="sample-badge {% if m.sample_confidence == 'HIGH' %}sample-high{% elif m.sample_confidence == 'MEDIUM' %}sample-medium{% endif %}">{% if m.sample_confidence == 'LOW' %}Amostra baixa · fora do ranking principal{% elif m.sample_confidence == 'MEDIUM' %}Amostra média{% else %}Amostra alta{% endif %}</small></span></a></td>
+        <td>{{ m.movements }}</td><td>{{ m.delivered }}</td><td>{{ m.success_rate|floatformat:1 }}%</td><td>{{ m.clean_delivery_rate|floatformat:1 }}%</td>
+        <td><span class="{% if m.retention_rate > 5 %}danger-text{% endif %}">{{ m.retained }} · {{ m.retention_rate|floatformat:1 }}%</span></td>
+        <td>{{ m.time_window_failures }} · {{ m.time_window_rate|floatformat:1 }}%</td>
+        <td>{{ m.active_proofs }}{% if m.overdue_proofs %}<small class="table-sub danger-text">{{ m.overdue_proofs }} fora do prazo</small>{% endif %}</td>
+        <td><b>{{ m.recovered }}</b></td><td>{{ m.performance_score|floatformat:1 }}</td><td><span class="score-badge {% if m.ranking_score >= 90 %}good{% elif m.ranking_score >= 75 %}mid{% else %}low{% endif %}">{{ m.ranking_score|floatformat:1 }}</span></td><td>{{ m.productivity_score|floatformat:1 }}</td><td>{{ m.confidence_factor|floatformat:0 }}%<small class="table-sub">{{ m.sample_confidence }}</small></td>
+      </tr>{% empty %}<tr><td colspan="14" class="muted">Nenhum motorista para o filtro.</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% include 'components/pagination.html' with page_obj=page_obj %}
+  </article>
+  <aside class="panel highlights">
+    <div class="panel-title"><i data-lucide="sparkles"></i> Destaques do Período</div>
+    {% if highlights.volume %}<div class="highlight-card green"><small>Maior volume</small><b>{{ highlights.volume.driver.name }}</b><strong>{{ highlights.volume.weight_t|floatformat:1 }} t</strong></div>{% endif %}
+    {% if highlights.score %}<div class="highlight-card blue"><small>Melhor ranking ajustado</small><b>{{ highlights.score.driver.name }}</b><strong>{{ highlights.score.ranking_score|floatformat:1 }}</strong></div>{% else %}<div class="highlight-card blue"><small>Maior desempenho</small><b>Sem amostra elegível</b><strong>—</strong></div>{% endif %}
+    {% if highlights.recoveries %}<div class="highlight-card green"><small>Mais comprovantes resgatados</small><b>{{ highlights.recoveries.driver.name }}</b><strong>{{ highlights.recoveries.recovered }}</strong></div>{% endif %}
+    {% if highlights.retained %}<div class="highlight-card red"><small>Maior taxa de retenção</small><b>{{ highlights.retained.driver.name }}</b><strong>{{ highlights.retained.retention_rate|floatformat:1 }}%</strong></div>{% endif %}
+  </aside>
+</section>
+{% endblock %}

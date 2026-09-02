@@ -1,0 +1,9 @@
+{
+  "source": "relatorio SSW de homologacao Agosto/2026",
+  "rows_valid": 2838,
+  "unique_ctes": 2566,
+  "unique_retained_ctes": 152,
+  "unique_manifests_with_route_exit": 18,
+  "retention_rule": "codigo 34 ou MERCADORIA EM CONFERENCIA NO CLIENTE",
+  "route_rule": "codigo 85 ou SAIDA PARA ENTREGA"
+}

@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}WhatsApp Motoristas · Painel Motoristas{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='WhatsApp dos Motoristas' subtitle='Envio simples da operação e dos links individuais via Baileys / Node.js' %}
+
+<div class="whatsapp-page" data-whatsapp-center data-status-url="{% url 'whatsapp_status_api' %}">
+  <section class="panel whatsapp-connection-card">
+    <div class="whatsapp-connection-main">
+      <div class="whatsapp-bot-status" data-whatsapp-status>
+        <span class="status-icon {% if bot.process_alive and bot.connected %}green{% elif bot.process_alive %}warning{% else %}red{% endif %}" data-whatsapp-status-icon><i data-lucide="message-circle"></i></span>
+        <div class="whatsapp-status-copy">
+          <small>WHATSAPP · BAILEYS</small>
+          <h3 data-whatsapp-status-title>
+            {% if bot.process_alive and bot.connected %}Conectado e pronto{% elif bot.status == 'WAITING_QR' %}Escaneie o QR Code{% elif bot.status == 'RECONNECTING' %}Reconectando{% elif bot.status == 'LOGGED_OUT' %}Sessão desconectada{% elif bot.status == 'ERROR' %}Erro no serviço{% elif bot.process_alive %}Conectando{% else %}Offline{% endif %}
+          </h3>
+          <p data-whatsapp-status-message>{{ bot.message|default:'O Painel continua funcionando mesmo com o bot desligado.' }}</p>
+          <div class="whatsapp-runtime-meta">
+            <span data-whatsapp-browser>Motor: {{ bot.backend|default:'Baileys / Node.js' }}</span>
+            <span data-whatsapp-waiting>{% if bot.waiting_seconds %}Aguardando há {{ bot.waiting_seconds }}s{% endif %}</span>
+            <span data-whatsapp-url>{% if bot.account_name %}Conta: {{ bot.account_name }}{% endif %}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="whatsapp-bot-actions">
+        <a class="btn btn-primary" href="{% url 'whatsapp_pairing' %}"><i data-lucide="qr-code"></i>Conectar / QR Code</a>
+        <form method="post" action="{% url 'whatsapp_stop_bot' %}" data-whatsapp-stop {% if not bot.process_alive %}hidden{% endif %}>
+          {% csrf_token %}<button class="btn btn-danger-soft" type="submit"><i data-lucide="square"></i>Encerrar bot</button>
+        </form>
+        <form method="post" action="{% url 'whatsapp_reset_session' %}" data-confirm="Isso encerra o serviço e apaga somente a sessão local do Baileys. Você precisará escanear um novo QR Code. Continuar?">
+          {% csrf_token %}<button class="btn" type="submit"><i data-lucide="rotate-ccw"></i>Redefinir sessão</button>
+        </form>
+        <a class="btn" href="{% url 'operations_today' %}?date={{ selected_date|date:'Y-m-d' }}"><i data-lucide="route"></i>Operação do dia</a>
+      </div>
+    </div>
+
+    <div class="whatsapp-login-area" data-whatsapp-login-area {% if not bot.process_alive or bot.connected %}hidden{% endif %}>
+      <div class="whatsapp-qr-card" data-whatsapp-qr-card {% if not bot.qr_available %}hidden{% endif %}>
+        <div class="whatsapp-qr-frame">
+          <img data-whatsapp-qr-img {% if bot.qr_available %}src="{% url 'whatsapp_qr_image' %}?v=1"{% endif %} alt="QR Code para conectar o WhatsApp Web">
+        </div>
+        <div class="whatsapp-qr-copy">
+          <span class="eyebrow">CONEXÃO</span>
+          <h4>Escaneie com o WhatsApp da empresa</h4>
+          <ol>
+            <li>Abra o WhatsApp no celular.</li>
+            <li>Entre em <b>Aparelhos conectados</b>.</li>
+            <li>Toque em <b>Conectar um aparelho</b> e leia o QR.</li>
+          </ol>
+          <small>O QR é recebido diretamente pelo Baileys, sem abrir Chrome/Edge. Use a tela <b>Conectar / QR Code</b> para o pareamento.</small>
+        </div>
+      </div>
+      <div class="whatsapp-login-wait" data-whatsapp-login-wait {% if bot.qr_available %}hidden{% endif %}>
+        <span class="whatsapp-spinner"></span>
+        <div><b>Preparando a conexão</b><small>O Baileys está conectando diretamente ao WhatsApp e aguardando o QR Code. Você pode encerrar a qualquer momento.</small></div>
+      </div>
+    </div>
+  </section>
+
+  {% if not public_portal_ready %}
+  <section class="panel whatsapp-public-warning">
+    <div class="whatsapp-warning-icon"><i data-lucide="link-2-off"></i></div>
+    <div><div class="panel-title">Link externo ainda não configurado</div><small class="muted">O bot pode conectar ao WhatsApp, mas o celular do motorista não consegue abrir um link <code>127.0.0.1/localhost</code>. Configure <code>PANEL_PUBLIC_BASE_URL</code> com um endereço HTTPS/LAN acessível aos motoristas.</small></div>
+    <span class="chip chip-warning">ENVIO BLOQUEADO</span>
+  </section>
+  {% endif %}
+
+  <section class="kpi-grid four whatsapp-kpis">
+    <article class="kpi"><span class="kpi-icon blue"><i data-lucide="users"></i></span><div><span>Motoristas na operação</span><strong>{{ rows|length }}</strong></div></article>
+    <article class="kpi success"><span class="kpi-icon green"><i data-lucide="send"></i></span><div><span>Prontos para envio</span><strong>{{ ready_count }}</strong></div></article>
+    <article class="kpi warning"><span class="kpi-icon amber"><i data-lucide="user-x"></i></span><div><span>Cadastro pendente</span><strong>{{ pending_rows|length }}</strong></div></article>
+    <article class="kpi cyan"><span class="kpi-icon cyan"><i data-lucide="calendar-days"></i></span><div><span>Data da operação</span><strong>{{ selected_date|date:'d/m' }}</strong></div></article>
+  </section>
+
+  <section class="panel whatsapp-send-panel">
+    <div class="panel-heading whatsapp-send-heading">
+      <div><div class="panel-title">Envio da operação</div><small class="muted">O serviço somente envia mensagens criadas pelo Painel. Não há leitura nem resposta automática de conversas.</small></div>
+      <form class="filter-bar whatsapp-date-filter" method="get"><label>Data<input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label><button class="btn btn-sm" type="submit">Abrir</button></form>
+    </div>
+    <div class="whatsapp-send-summary">
+      <div class="whatsapp-ready-total"><b>{{ ready_count }}</b><span>mensagem(ns)<br>pronta(s)</span></div>
+      <div class="whatsapp-send-note"><p>Confira os cadastros pendentes antes do lote. Uma falha individual não bloqueia os demais motoristas.</p><span><b data-whatsapp-pending>{{ bot.pending|default:0 }}</b> mensagem(ns) na fila agora.</span></div>
+      <div class="whatsapp-batch-actions">
+        <form method="post" action="{% url 'whatsapp_send_day' %}" data-single-submit="1">{% csrf_token %}<input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}"><button class="btn btn-send-batch" type="submit" {% if not ready_count %}disabled{% endif %}><i data-lucide="route"></i>Enviar só operação do dia</button></form>
+        <form method="post" action="{% url 'whatsapp_send_all_registered' %}" data-single-submit="1" data-confirm="Gerar mensagens para todos os motoristas cadastrados e habilitados? O Baileys enviará uma por vez e não duplicará quem já recebeu a mensagem diária desta data.">{% csrf_token %}<input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}"><button class="btn btn-primary btn-send-batch" type="submit" {% if not all_ready_count %}disabled{% endif %}><i data-lucide="send"></i>Gerar e enviar para todos ({{ all_ready_count }})</button></form>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel whatsapp-drivers-panel">
+    <div class="panel-heading"><div><div class="panel-title">Motoristas da operação</div><small class="muted">Envie individualmente, copie o portal ou corrija o cadastro sem sair desta tela.</small></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Motorista</th><th>WhatsApp</th><th>Rotas</th><th>Clientes</th><th>Retiradas</th><th>Último envio</th><th>Ações</th></tr></thead><tbody>
+      {% for row in rows %}
+      <tr>
+        <td><b>{{ row.driver.name }}</b><small class="table-sub">{{ row.summary.movements }} CT-es/tentativas</small></td>
+        <td>{% if row.phone %}<span class="chip {% if row.ready %}chip-green{% else %}chip-warning{% endif %}">+{{ row.phone }}</span>{% else %}<span class="chip chip-red">Sem número</span>{% endif %}</td>
+        <td>{{ row.summary.routes }}</td><td>{{ row.summary.clients }}</td><td>{{ row.summary.opportunities }}</td>
+        <td>{% if row.last_message %}<span class="chip {% if row.last_message.status == 'SENT' %}chip-green{% elif row.last_message.status == 'FAILED' %}chip-red{% else %}chip-warning{% endif %}">{{ row.last_message.get_status_display }}</span><small class="table-sub">{{ row.last_message.created_at|date:'d/m H:i' }}</small>{% else %}—{% endif %}</td>
+        <td><div class="actions compact-actions">{% if row.ready %}<form method="post" action="{% url 'whatsapp_send_driver_day' row.driver.pk %}" data-single-submit="1">{% csrf_token %}<input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}"><button class="btn btn-sm" type="submit"><i data-lucide="send"></i>Enviar só este</button></form>{% endif %}{% if row.portal_url %}<button class="btn btn-sm" type="button" data-copy-text="{{ row.portal_url }}"><i data-lucide="copy"></i>Copiar link</button>{% else %}<form method="post" action="{% url 'whatsapp_ensure_driver_link' row.driver.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'whatsapp_center' %}?date={{ selected_date|date:'Y-m-d' }}"><button class="btn btn-sm" type="submit"><i data-lucide="link"></i>Gerar link</button></form>{% endif %}<a class="btn btn-sm" href="{% url 'driver_detail' row.driver.pk %}">Perfil</a></div></td>
+      </tr>
+      {% empty %}<tr><td colspan="7" class="whatsapp-empty-row"><i data-lucide="route"></i><span>Nenhum motorista com operação identificada nesta data.</span></td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="panel whatsapp-drivers-panel whatsapp-contacts-panel">
+    <div class="panel-heading"><div><div class="panel-title">Cadastros WhatsApp</div><small class="muted">Todos os motoristas ativos. Edite o telefone aqui mesmo; o envio brasileiro testa automaticamente as formas com e sem o 9 após o DDD.</small></div><span class="chip {% if all_pending_count %}chip-warning{% else %}chip-green{% endif %}">{{ all_ready_count }} pronto(s) · {{ all_pending_count }} pendente(s)</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Número cadastrado</th><th>Operação {{ selected_date|date:'d/m' }}</th><th>Envio</th><th>Editar</th></tr></thead><tbody>
+      {% for row in all_driver_rows %}
+      <tr>
+        <td><b>{{ row.driver.name }}</b></td>
+        <td>{% if row.phone %}<span class="chip {% if row.phone_ready %}chip-green{% else %}chip-warning{% endif %}">+{{ row.phone }}</span>{% else %}<span class="chip chip-red">Sem número</span>{% endif %}</td>
+        <td>{% if row.has_operation %}<span class="chip chip-cyan">{{ row.summary.routes }} rota(s) · {{ row.summary.movements }} CT-e(s)</span>{% else %}<span class="muted">Sem rota identificada</span>{% endif %}</td>
+        <td>{% if row.driver.whatsapp_enabled %}<span class="chip chip-green">Habilitado</span>{% else %}<span class="chip chip-warning">Desabilitado</span>{% endif %}</td>
+        <td><details class="whatsapp-inline-edit"><summary class="btn btn-sm"><i data-lucide="pencil"></i>Editar número</summary><form method="post" action="{% url 'whatsapp_driver_contact' row.driver.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'whatsapp_center' %}?date={{ selected_date|date:'Y-m-d' }}"><label>WhatsApp<input name="whatsapp_phone" value="{{ row.driver.whatsapp_phone }}" placeholder="91 99999-9999"></label><label class="check-row"><input type="checkbox" name="whatsapp_enabled" {% if row.driver.whatsapp_enabled %}checked{% endif %}> Habilitar envio</label><button class="btn btn-primary btn-sm" type="submit">Salvar</button></form></details></td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="muted">Nenhum motorista ativo cadastrado.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  {% if pending_rows %}
+  <section class="panel whatsapp-pending-panel"><div class="panel-heading"><div><div class="panel-title">Cadastros que precisam de atenção</div><small class="muted">Corrija aqui mesmo; não precisa abrir motorista por motorista.</small></div><span class="chip chip-warning">{{ pending_rows|length }} pendente(s)</span></div>
+    <div class="whatsapp-pending-grid">{% for row in pending_rows %}<form class="whatsapp-contact-card" method="post" action="{% url 'whatsapp_driver_contact' row.driver.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'whatsapp_center' %}?date={{ selected_date|date:'Y-m-d' }}"><b>{{ row.driver.name }}</b><small>{% if not row.phone %}Telefone ausente{% elif not row.driver.whatsapp_enabled %}Envio desativado{% elif not public_portal_ready %}Link externo do Painel não configurado{% else %}Cadastro pendente{% endif %}</small><label>WhatsApp<input name="whatsapp_phone" value="{{ row.driver.whatsapp_phone }}" placeholder="91 99999-9999"></label><label class="check-row"><input type="checkbox" name="whatsapp_enabled" {% if row.driver.whatsapp_enabled %}checked{% endif %}> Habilitar envio</label><button class="btn btn-sm" type="submit">Salvar cadastro</button></form>{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  <section class="two-col whatsapp-bottom-grid">
+    <article class="panel"><div class="panel-heading"><div><div class="panel-title">Romaneios preparados sem data confirmada</div><small class="muted">Candidatos de planejamento; a emissão não confirma o dia da rota.</small></div></div><div class="compact-list">{% for manifest in planned_manifests %}<div><span><b>{{ manifest.driver.name }}</b><small>Romaneio {{ manifest.number }} · emitido {{ manifest.date|date:'d/m' }}</small></span><a class="btn btn-sm" href="{% url 'manifest_detail' manifest.pk %}">Abrir</a></div>{% empty %}<p class="muted">Nenhum romaneio recente aguardando confirmação.</p>{% endfor %}</div></article>
+    <article class="panel"><div class="panel-heading"><div><div class="panel-title">Histórico de comunicação</div><small class="muted">Últimas tentativas de envio do bot.</small></div></div><div class="compact-list">{% for item in recent|slice:':12' %}<div><span><b>{{ item.driver.name }}</b><small>{{ item.get_kind_display }} · {{ item.created_at|date:'d/m H:i' }}</small>{% if item.error %}<small class="danger-text">{{ item.error|truncatechars:90 }}</small>{% endif %}</span><span class="chip {% if item.status == 'SENT' %}chip-green{% elif item.status == 'FAILED' %}chip-red{% else %}chip-warning{% endif %}">{{ item.get_status_display }}</span></div>{% empty %}<p class="muted">Nenhum envio registrado.</p>{% endfor %}</div></article>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,6 @@
+Painel Motoristas v0.8.0.0
+Base anterior: v0.7.1.1
+Escopo: VPS Hostinger + GitHub + Docker + automação SSW + WhatsApp lote/telefone BR
+Schema: sem alteração de models/migrations
+robot_ssw: congelado; 17/17 arquivos idênticos à v0.7.1.1
+Deploy alvo: Ubuntu/Hostinger, Docker Compose, acesso inicial por IP HTTP

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Romaneio {{ manifest.number }} · Painel Motoristas{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='Detalhes da Rota' subtitle='Data operacional baseada na melhor evidência disponível no SSW' %}
+<section class="profile-hero panel">
+  <div class="avatar large">{{ manifest.driver.name|first }}</div>
+  <div class="grow"><div class="hero-title"><h2>{{ manifest.driver.name }}</h2><span class="chip {% if route_confidence == 'CONFIRMED' %}chip-green{% elif route_confidence == 'INFERRED' %}chip-cyan{% else %}chip-warning{% endif %}">{% if route_confidence == 'CONFIRMED' %}Data confirmada · Saída para entrega{% elif route_confidence == 'INFERRED' %}Data inferida · ocorrência da rota{% else %}Planejamento · data não confirmada{% endif %}</span></div><p>Referência {{ route_date|date:'d/m/Y' }} · emitido {{ manifest.date|date:'d/m/Y' }} · {{ manifest.vehicle.plate|default:'Sem placa' }} · {{ manifest.number }}</p></div><div class="actions">{% if can_coordinate %}<form method="post" action="{% url 'whatsapp_send_manifest' manifest.pk %}">{% csrf_token %}<input type="hidden" name="date" value="{{ route_date|date:'Y-m-d' }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-primary" type="submit"><i data-lucide="send"></i>Enviar para motorista</button></form>{% endif %}<a class="btn" href="{{ return_url }}">← Voltar</a></div>
+</section>
+<section class="two-col">
+  <article class="panel">
+    <div class="panel-title">Entregas da rota</div>
+    <div class="table-wrap"><table><thead><tr><th>CTRC</th><th>Cliente</th><th>Endereço</th><th>Bairro</th><th>Peso</th><th>Resultado</th><th>Ocorrência</th></tr></thead><tbody>
+      {% for m in movements %}<tr><td><a class="cte-link" href="{% url 'cte_detail' m.cte.pk %}?next={{ request.get_full_path|urlencode }}"><b>{{ m.cte.ctrc }}</b><small>NF {{ m.cte.invoice_number|default:'Não informada' }}</small></a></td><td>{{ m.client.name|default:'—' }}</td><td>{{ m.address.street|default:'—' }}</td><td>{{ m.address.district|default:'—' }}</td><td>{{ m.weight_kg|floatformat:1 }} kg</td><td>{% if m.cte_id in delivered_ids %}<span class="chip chip-green">Entregue</span>{% else %}<span class="chip chip-warning">Em acompanhamento</span>{% endif %}</td><td>{{ m.occurrence_text|default:'—' }}</td></tr>{% empty %}<tr><td colspan="7" class="muted">Sem movimentos neste romaneio.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
+  <aside class="side-stack">
+    <article class="panel accent-purple"><div class="panel-title">Retiradas exatas</div>{% for o in exact %}<a class="opportunity-item" href="{% url 'proofs' %}?selected={{ o.proof.pk }}"><b>{{ o.proof.client.name }}</b><small>{{ o.proof.cte.ctrc }} · {{ o.reason }}</small></a>{% empty %}<p class="muted">Nenhuma retirada exata.</p>{% endfor %}</article>
+    <article class="panel"><div class="panel-title">Oportunidades por região</div>{% for o in regional %}<a class="opportunity-item region" href="{% url 'proofs' %}?selected={{ o.proof.pk }}"><b>{{ o.proof.client.name }}</b><small>{{ o.proof.address.district }} · {{ o.proof.cte.ctrc }}</small></a>{% empty %}<p class="muted">Nenhuma oportunidade por bairro.</p>{% endfor %}</article>
+  </aside>
+</section>
+{% endblock %}

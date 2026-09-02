@@ -1,0 +1,17 @@
+{% load query_helpers %}
+<form class="filter-bar period-bar" method="get">
+  <a class="filter-pill {% if period_mode == 'today' %}active{% endif %}" href="{% replace_query period='today' start='' end='' page='' %}">Hoje</a>
+  <a class="filter-pill {% if period_mode == '7d' %}active{% endif %}" href="{% replace_query period='7d' start='' end='' page='' %}">Últimos 7 dias</a>
+  <a class="filter-pill {% if period_mode == 'week' %}active{% endif %}" href="{% replace_query period='week' start='' end='' page='' %}">Semana atual</a>
+  <a class="filter-pill {% if period_mode == 'month' %}active{% endif %}" href="{% replace_query period='month' start='' end='' page='' %}">Mês atual</a>
+  <a class="filter-pill {% if period_mode == '30d' %}active{% endif %}" href="{% replace_query period='30d' start='' end='' page='' %}">Últimos 30 dias</a>
+  <a class="filter-pill {% if period_mode == '90d' %}active{% endif %}" href="{% replace_query period='90d' start='' end='' page='' %}">Últimos 90 dias</a>
+  <a class="filter-pill {% if period_mode == 'year' %}active{% endif %}" href="{% replace_query period='year' start='' end='' page='' %}">Ano atual</a>
+  <div class="custom-period">
+    {% for key,value in request.GET.items %}{% if key != 'start' and key != 'end' and key != 'period' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+    <input type="date" name="start" value="{{ period_start|date:'Y-m-d' }}">
+    <span>até</span>
+    <input type="date" name="end" value="{{ period_end|date:'Y-m-d' }}">
+    <button class="btn btn-sm" type="submit"><i data-lucide="filter"></i>Aplicar</button>
+  </div>
+</form>

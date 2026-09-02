@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{% if is_today %}Operação de Hoje{% elif is_future %}Operação Planejada{% else %}Operação do Dia{% endif %} · Painel Motoristas{% endblock %}
+{% block scripts %}<script src="{% static 'js/geo_map.js' %}?v=0.7.0.0" defer></script>{% endblock %}
+{% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js" defer></script>{% endblock %}
+{% block content %}
+{% if is_today %}{% include 'components/header.html' with title='Operação de Hoje' subtitle='Visão operacional viva das rotas do dia' %}{% elif is_future %}{% include 'components/header.html' with title='Operação Planejada' subtitle='Romaneios já preparados/importados para a próxima data' %}{% else %}{% include 'components/header.html' with title='Operação do Dia' subtitle='Fotografia histórica reconstruída pelos fatos operacionais' %}{% endif %}
+
+<div class="operation-day-toolbar">
+  <a class="btn btn-sm" href="?date={{ previous_date|date:'Y-m-d' }}"><i data-lucide="chevron-left"></i>Dia anterior</a>
+  <form class="filter-bar operation-date-filter"><label>Data<input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label>{% if focus %}<input type="hidden" name="focus" value="{{ focus }}">{% endif %}<button class="btn btn-primary" type="submit"><i data-lucide="calendar-search"></i>Abrir dia</button></form>
+  {% if next_date %}<a class="btn btn-sm" href="?date={{ next_date|date:'Y-m-d' }}"><i data-lucide="chevron-right"></i>Próximo dia</a>{% else %}<span class="chip chip-cyan"><i data-lucide="radio"></i>Hoje</span>{% endif %}
+</div>
+{% if is_past %}<div class="history-banner"><i data-lucide="archive"></i><div><b>Período encerrado · {{ selected_date|date:'d/m/Y' }}</b><small>Os cards abaixo permanecem consultáveis após o fechamento do dia. Entregas são calculadas como estavam até esta data.</small></div><a class="btn btn-sm" href="{% url 'operations_today' %}">Voltar para hoje</a></div>{% elif is_future %}<div class="history-banner"><i data-lucide="calendar-clock"></i><div><b>Operação preparada · {{ selected_date|date:'d/m/Y' }}</b><small>Mostra candidatos recentes de planejamento. Eles não são atribuídos automaticamente a esta data; a execução só é confirmada quando houver evidência operacional.</small></div><a class="btn btn-sm" href="{% url 'operations_today' %}">Voltar para hoje</a></div>{% endif %}
+{% if focus %}<div class="focus-banner"><i data-lucide="scan-search"></i>Detalhamento aberto pelo gráfico do Dashboard · foco inicial: <b>{% if focus == 'deliveries' %}Entregas{% elif focus == 'retentions' %}Retenções{% elif focus == 'proofs' %}Pendências{% else %}Operação{% endif %}</b></div>{% endif %}
+
+<section class="kpi-grid six">
+  <article class="kpi"><span class="kpi-icon blue"><i data-lucide="users"></i></span><div><span>Motoristas em rota</span><strong>{{ drivers_in_route }}</strong></div></article>
+  <article class="kpi success {% if focus == 'deliveries' %}kpi-focus{% endif %}"><span class="kpi-icon green"><i data-lucide="package-check"></i></span><div><span>Entregas concluídas</span><strong>{{ delivered_count }}</strong></div><small>{{ movements_count }} movimentações na rota</small></article>
+  <article class="kpi cyan"><span class="kpi-icon cyan"><i data-lucide="building-2"></i></span><div><span>Clientes do dia</span><strong>{{ clients_count }}</strong></div></article>
+  <article class="kpi"><span class="kpi-icon purple"><i data-lucide="weight"></i></span><div><span>Peso previsto</span><strong>{{ total_weight_t|floatformat:1 }} t</strong></div></article>
+  <article class="kpi danger {% if focus == 'retentions' %}kpi-focus{% endif %}"><span class="kpi-icon red"><i data-lucide="package-x"></i></span><div><span>Retidos no dia</span><strong>{{ retained_today }}</strong></div><small>{{ retained_recovered_later }} recuperados depois · {{ retained_still_open }} ainda abertos</small></article>
+  <article class="kpi warning {% if focus == 'proofs' %}kpi-focus{% endif %}"><span class="kpi-icon amber"><i data-lucide="route"></i></span><div><span>{% if is_today %}Retiradas possíveis hoje{% else %}Oportunidades relacionadas{% endif %}</span><strong>{{ exact_opportunities }}</strong></div><small>+ {{ regional_opportunities }} por região</small></article>
+</section>
+
+<section class="operation-layout">
+  <article class="panel">
+    <div class="panel-heading"><div><div class="panel-title">Rotas de {{ selected_date|date:'d/m/Y' }}</div><small class="muted">{{ cards|length }} romaneios executados ou ainda ativos na data operacional</small></div><span class="chip {% if is_today %}chip-green{% else %}chip-cyan{% endif %}">{% if is_today %}EM ANDAMENTO{% elif is_future %}PLANEJADA{% else %}HISTÓRICO{% endif %}</span></div>
+    <div class="route-grid">
+      {% for c in cards %}
+      <article class="route-card route-card-wrap">
+        <a class="route-card-link" href="{% url 'manifest_detail' c.manifest.pk %}?date={{ selected_date|date:'Y-m-d' }}&next={{ request.get_full_path|urlencode }}">
+          <div class="route-top"><span class="chip {% if c.route_confidence == 'CONFIRMED' %}chip-green{% else %}chip-cyan{% endif %}"><i data-lucide="navigation"></i>{% if c.route_confidence == 'CONFIRMED' %}Confirmada{% elif c.route_confidence == 'CARRYOVER' %}Em andamento{% else %}Data inferida{% endif %} · {{ selected_date|date:'d/m' }}</span><span class="route-plate">{{ c.manifest.vehicle.plate|default:'SEM PLACA' }}</span></div>
+          <div class="route-driver"><span class="mini-avatar lg">{{ c.manifest.driver.name|first }}</span><div><h3>{{ c.manifest.driver.name }}</h3><small>Romaneio {{ c.manifest.number }} · emitido {{ c.manifest.date|date:'d/m' }}</small></div></div>
+          <div class="route-stats"><div><b>{{ c.delivered }}/{{ c.movements }}</b><small>Entregues / tentativas</small></div><div><b>{{ c.clients }}</b><small>Clientes</small></div><div><b>{{ c.weight_kg|floatformat:0 }} kg</b><small>Peso</small></div></div>
+          <div class="route-regions"><i data-lucide="map-pin"></i><span>{% for d in c.districts %}{{ d }}{% if not forloop.last %}, {% endif %}{% empty %}Sem bairro{% endfor %}</span></div>
+          {% if c.exact %}<div class="route-alert exact"><i data-lucide="package-open"></i>{{ c.exact|length }} retirada{{ c.exact|length|pluralize }} exata{{ c.exact|length|pluralize }}</div>{% elif c.regional %}<div class="route-alert region"><i data-lucide="map-pinned"></i>{{ c.regional|length }} oportunidade{{ c.regional|length|pluralize }} por região</div>{% else %}<div class="route-alert clear"><i data-lucide="circle-check"></i>Sem retiradas pendentes</div>{% endif %}
+        </a>
+        {% if can_coordinate %}<div class="route-card-actions"><form method="post" action="{% url 'whatsapp_send_manifest' c.manifest.pk %}" data-single-submit="1">{% csrf_token %}<input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm" type="submit"><i data-lucide="send"></i>Enviar WhatsApp</button></form><a class="btn btn-sm" href="{% url 'whatsapp_center' %}?date={{ selected_date|date:'Y-m-d' }}">Central</a></div>{% endif %}
+      </article>
+      {% empty %}<div class="empty-state">Nenhuma rota encontrada para {{ selected_date|date:'d/m/Y' }}.{% if latest_date and latest_date != selected_date %}<br><a class="btn btn-sm" href="?date={{ latest_date|date:'Y-m-d' }}">Abrir última data operacional: {{ latest_date|date:'d/m/Y' }}</a>{% endif %}</div>{% endfor %}
+    </div>
+  </article>
+  {% if planning_cards %}<article class="panel planning-panel"><div class="panel-heading"><div><div class="panel-title">Planejamento / próximas rotas</div><small class="muted">Romaneios recentes sem evidência de saída. Não são atribuídos automaticamente a amanhã.</small></div><span class="chip chip-warning">DATA NÃO CONFIRMADA</span></div><div class="planning-list">{% for c in planning_cards %}<div class="planning-row"><span><b>{{ c.manifest.driver.name }}</b><small>Romaneio {{ c.manifest.number }} · emitido {{ c.manifest.date|date:'d/m' }} · {{ c.movements }} CT-es · {{ c.clients }} clientes</small></span><div class="actions"><a class="btn btn-sm" href="{% url 'manifest_detail' c.manifest.pk %}">Abrir</a>{% if can_coordinate %}<form method="post" action="{% url 'whatsapp_send_manifest' c.manifest.pk %}">{% csrf_token %}<input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm" type="submit">Enviar link</button></form>{% endif %}</div></div>{% endfor %}</div></article>{% endif %}
+  <aside class="side-stack">
+    <article class="panel accent-purple"><div class="panel-title"><i data-lucide="bell-ring"></i> Alertas de Retirada</div><div class="alert-summary"><div><b>{{ exact_opportunities }}</b><span>match exato</span></div><div><b>{{ regional_opportunities }}</b><span>mesmo bairro</span></div></div><p class="muted">Match exato usa cliente/CNPJ/endereço/CEP. O mesmo bairro é somente oportunidade regional.</p></article>
+    <article class="panel geo-shell geo-compact-panel"><div class="panel-heading geo-panel-heading"><div><div class="panel-title">Cobertura Operacional</div><small class="muted">Dados reais da operação por <span data-geo-level-label>região</span></small></div><a class="btn btn-sm" href="{% url 'map_operational' %}?start={{ selected_date|date:'Y-m-d' }}&end={{ selected_date|date:'Y-m-d' }}">Ver mapa</a></div><div class="geo-compact-wrap"><div class="geo-map geo-map-compact" data-geo-map data-compact="1" data-api="{% url 'geo_summary_api' %}" data-date="{{ selected_date|date:'Y-m-d' }}" data-branch="{{ robot_unit|default:'BEL' }}" data-metric="delivered" data-level="auto"></div><div class="geo-state" data-geo-state>Carregando cobertura…</div></div><div class="geo-compact-foot"><span><b data-geo-summary="delivered">0</b> entregas</span><span><b data-geo-summary="retentions">0</b> retenções</span><span data-geo-unresolved hidden></span></div></article>
+  </aside>
+</section>
+{% endblock %}

@@ -1,0 +1,41 @@
+{
+  "legacy_get_or_create_callsites": 8,
+  "v2_get_or_create_callsites": 0,
+  "legacy_save_callsites": 15,
+  "v2_bulk_create_callsites": 10,
+  "v2_bulk_update_callsites": 11,
+  "v2_direct_orm_calls_inside_loops": [],
+  "robot_core": {
+    "robot_ssw/__init__.py": {
+      "expected": "a135fed7a45224a84eb046a420017269b27d01ce7c5407b26e647918341895f4",
+      "actual": "a135fed7a45224a84eb046a420017269b27d01ce7c5407b26e647918341895f4",
+      "ok": true
+    },
+    "robot_ssw/config.py": {
+      "expected": "ad3e67d239522484aef3694ed49c76f253d4fe11ba1f64c29421bb16631813fe",
+      "actual": "ad3e67d239522484aef3694ed49c76f253d4fe11ba1f64c29421bb16631813fe",
+      "ok": true
+    },
+    "robot_ssw/io_utils.py": {
+      "expected": "e7e4c2887288a0b3c3cec64718eb06df1fefc7394d5f4d393acfb7143c5da66e",
+      "actual": "e7e4c2887288a0b3c3cec64718eb06df1fefc7394d5f4d393acfb7143c5da66e",
+      "ok": true
+    },
+    "robot_ssw/models.py": {
+      "expected": "b65db540795898942ec01e93c973391c40f3bc4571b95213e5e041381984f68b",
+      "actual": "b65db540795898942ec01e93c973391c40f3bc4571b95213e5e041381984f68b",
+      "ok": true
+    },
+    "robot_ssw/worker.py": {
+      "expected": "ba8c21d9a7a38666712bbfba6e18005c38405682a52632403883762db46c341e",
+      "actual": "ba8c21d9a7a38666712bbfba6e18005c38405682a52632403883762db46c341e",
+      "ok": true
+    },
+    "robot_ssw/cli.py": {
+      "expected": "d767b5e5ee0759c865eca30b7672d64704b4f651b7cb691b380f1838c9c07afc",
+      "actual": "d767b5e5ee0759c865eca30b7672d64704b4f651b7cb691b380f1838c9c07afc",
+      "ok": true
+    }
+  },
+  "python_files": 132
+}
