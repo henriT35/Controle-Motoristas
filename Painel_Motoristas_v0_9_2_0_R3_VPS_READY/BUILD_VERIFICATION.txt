@@ -1,0 +1,31 @@
+PAINEL MOTORISTAS v0.9.2.0 — BUILD VERIFICATION
+
+VERIFICAR_BUILD.bat é o verificador Windows da release.
+
+QA portátil desta versão cobre:
+- sintaxe Python;
+- JavaScript via node --check quando Node existir;
+- contrato estático v0.9.1 e v0.9.2;
+- migrations versionadas/índices explícitos (v0.9.1 + v0.9.2);
+- temporalidade ROM85/ROM34/13;
+- retenção por estado atual do CTRC;
+- integridade do robot_ssw;
+- adapter mock da opção 036;
+- templates/rotas;
+- Baileys/telefone;
+- VPS estática.
+
+Com Django instalado o verificador também exige:
+- manage.py check;
+- makemigrations --check --dry-run;
+- migrate --plan;
+- suíte crítica Django.
+
+A release não executa makemigrations automaticamente no boot.
+A reconciliação de retidos deve ser testada com --dry-run antes da aplicação.
+HOMOLOGAÇÃO EXTERNA PENDENTE permanece obrigatória para SSW real, WhatsApp real, PostgreSQL/VPS, UI real e benchmarks HTTP/cache frio-quente quando não executados no ambiente de empacotamento.
+
+HOTFIX pós-empacotamento validado no Windows:
+- corrigido E034 de nome de índice > 30 caracteres em ProofPickupOpportunity;
+- nome atual: proofs_opp_drv_date_kind_idx;
+- reexecutar VERIFICAR_BUILD.bat/EXECUTAR_ONLINE.bat no ambiente Windows real.

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Avaliações ROM13 · Painel Motoristas{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='Avaliações Pendentes' subtitle='ROM13 só afeta a Qualidade depois da decisão do coordenador' %}
+
+<div class="evaluation-start-banner">
+  <b>Avaliação V3 desde {{ evaluation_start|date:'d/m/Y' }}</b>
+  <span>Ocorrências anteriores permanecem somente no histórico operacional e não entram nesta fila.</span>
+</div>
+
+<section class="kpi-grid four">
+  <article class="kpi warning"><div><span>Pendentes</span><strong>{{ counts.PENDING|default:0 }}</strong></div><small>Zero impacto até decisão</small></article>
+  <article class="kpi danger"><div><span>Responsabilidade</span><strong>{{ counts.DRIVER_RESPONSIBLE|default:0 }}</strong></div><small>Impactam Qualidade proporcionalmente</small></article>
+  <article class="kpi success"><div><span>Sem responsabilidade</span><strong>{{ counts.NOT_RESPONSIBLE|default:0 }}</strong></div><small>Analisadas · neutras</small></article>
+  <article class="kpi"><div><span>Verificar</span><strong>{{ counts.VERIFY|default:0 }}</strong></div><small>Sem impacto enquanto inconclusivo</small></article>
+</section>
+
+<form class="filter-bar" method="get">
+  <label>Busca<input name="q" value="{{ q }}" placeholder="Motorista, romaneio, CT-e ou cliente"></label>
+  <label>Status<select name="status"><option value="ALL" {% if selected_status == 'ALL' %}selected{% endif %}>Todos</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label>De<input type="date" name="start" value="{{ start }}" min="{{ evaluation_start|date:'Y-m-d' }}"></label>
+  <label>Até<input type="date" name="end" value="{{ end }}"></label>
+  <button class="btn btn-primary" type="submit">Filtrar</button>
+</form>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <div class="panel-title">ROM13 · Entrega prejudicada pelo horário</div>
+      <small class="muted">Uma ocorrência validada pertence somente à tentativa/CT-e exibida. Nova tentativa com novo ROM13 pode gerar nova avaliação.</small>
+    </div>
+  </div>
+  <div class="table-wrap quality-table-wrap">
+    <table>
+      <thead><tr><th>Data</th><th>Motorista</th><th>Romaneio / CT-e</th><th>Cliente</th><th>Status</th><th>Decisão</th></tr></thead>
+      <tbody>
+      {% for e in page_obj %}
+      <tr>
+        <td>{{ e.operation_date|date:'d/m/Y' }}</td>
+        <td><a href="{% url 'driver_detail' e.driver_id %}">{{ e.driver.name }}</a></td>
+        <td><b>{{ e.manifest.number }}</b><small class="table-sub">{{ e.cte.ctrc }}</small></td>
+        <td>{{ e.client.name|default:'—' }}</td>
+        <td>
+          <span class="chip {% if e.status == 'DRIVER_RESPONSIBLE' %}chip-red{% elif e.status == 'NOT_RESPONSIBLE' %}chip-green{% elif e.status == 'PENDING' %}chip-warning{% else %}chip-cyan{% endif %}">{{ e.get_status_display }}</span>
+          {% if e.reviewed_at %}<small class="table-sub">{{ e.reviewed_at|date:'d/m H:i' }} · {{ e.reviewed_by.username|default:'Sistema' }}</small>{% endif %}
+        </td>
+        <td>
+          <button
+            class="btn btn-sm js-quality-review"
+            type="button"
+            data-review-url="{% url 'driver_quality_review_action' e.pk %}"
+            data-driver="{{ e.driver.name|escape }}"
+            data-manifest="{{ e.manifest.number|escape }}"
+            data-cte="{{ e.cte.ctrc|escape }}"
+            data-client="{{ e.client.name|default:'—'|escape }}"
+            data-date="{{ e.operation_date|date:'d/m/Y' }}"
+            data-status="{{ e.status }}"
+            data-status-label="{{ e.get_status_display|escape }}"
+            data-visible-reason="{{ e.visible_reason|escape }}"
+            data-internal-note="{{ e.internal_note|escape }}"
+          >{% if e.status == 'PENDING' %}Avaliar{% else %}Ver / revisar{% endif %}</button>
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="muted">Nenhuma avaliação para os filtros.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'components/pagination.html' with page_obj=page_obj %}
+</section>
+
+<div class="quality-modal" id="quality-review-modal" hidden aria-hidden="true">
+  <div class="quality-modal-backdrop" data-quality-close></div>
+  <section class="quality-modal-card" role="dialog" aria-modal="true" aria-labelledby="quality-modal-title">
+    <header class="quality-modal-header">
+      <div><small>Validação manual</small><h2 id="quality-modal-title">Avaliar ROM13</h2></div>
+      <button class="icon-btn" type="button" data-quality-close aria-label="Fechar">×</button>
+    </header>
+    <div class="quality-modal-context">
+      <div><span>Motorista</span><b id="quality-modal-driver">—</b></div>
+      <div><span>Data</span><b id="quality-modal-date">—</b></div>
+      <div><span>Romaneio</span><b id="quality-modal-manifest">—</b></div>
+      <div><span>CT-e</span><b id="quality-modal-cte">—</b></div>
+      <div class="span-2"><span>Cliente</span><b id="quality-modal-client">—</b></div>
+      <div class="span-2"><span>Status atual</span><b id="quality-modal-status">—</b></div>
+    </div>
+    <form method="post" id="quality-review-form" class="quality-modal-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="quality-decision-grid">
+        <button class="quality-decision danger" name="decision" value="responsible" type="submit"><b>Responsabilidade do motorista</b><small>Entra proporcionalmente na Qualidade.</small></button>
+        <button class="quality-decision success" name="decision" value="not_responsible" type="submit"><b>Não foi responsabilidade</b><small>Fica neutro e auditado.</small></button>
+        <button class="quality-decision warning" name="decision" value="verify" type="submit"><b>Não foi possível determinar</b><small>Permanece sem impacto.</small></button>
+      </div>
+      <label>Motivo visível ao motorista
+        <textarea id="quality-visible-reason" name="visible_reason" rows="3" placeholder="Obrigatório quando houver responsabilidade"></textarea>
+      </label>
+      <label>Observação interna
+        <textarea id="quality-internal-note" name="internal_note" rows="3" placeholder="Opcional · somente coordenação"></textarea>
+      </label>
+      <footer class="quality-modal-actions">
+        <button class="btn" type="button" data-quality-close>Cancelar</button>
+        <button class="btn" id="quality-reopen-button" name="decision" value="reopen" type="submit" hidden>Reabrir avaliação</button>
+      </footer>
+    </form>
+  </section>
+</div>
+
+<section class="two-col" id="regularity-omissions">
+  <article class="panel">
+    <div class="panel-heading"><div><div class="panel-title">Retiradas Exatas sem manifestação</div><small class="muted">Ação obrigatória apresentada e encerrada sem resposta · impacta somente Regularidade</small></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Data</th><th>Motorista</th><th>Cliente / parada</th><th>Comprovantes</th><th>Romaneios</th></tr></thead><tbody>
+    {% for o in missed_exact %}<tr><td>{{ o.operation_date|date:'d/m/Y' }}</td><td>{{ o.driver__name }}</td><td>{{ o.proof__client__name }}</td><td><a href="{% url 'proofs' %}?selected={{ o.sample_proof_id }}">{{ o.proof_count }} comprovante{{ o.proof_count|pluralize }}</a></td><td>{{ o.manifest_count }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Nenhuma parada com Retirada Exata ignorada.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p class="muted evaluation-note">Oportunidade de Ouro ignorada nunca aparece nesta lista e nunca reduz Regularidade.</p>
+    <div class="panel-title regularity-secondary-title">Ressalvas obrigatórias sem registro</div>
+    <div class="table-wrap"><table><thead><tr><th>Data</th><th>Motorista</th><th>Romaneio</th><th>CT-e</th><th>Cliente</th></tr></thead><tbody>
+    {% for o in missed_retentions %}<tr><td>{{ o.operation_date|date:'d/m/Y' }}</td><td>{{ o.driver.name }}</td><td>{{ o.manifest.number }}</td><td><a href="{% url 'proofs' %}?selected={{ o.proof_id }}">{{ o.proof.cte.ctrc }}</a></td><td>{{ o.proof.client.name }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Nenhuma omissão prospectiva de ressalva registrada.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p class="muted evaluation-note">Somente obrigações a partir do marco oficial da Avaliação V3 entram aqui; ROM34 histórico não gera penalização retroativa.</p>
+  </article>
+  <article class="panel">
+    <div class="panel-heading"><div><div class="panel-title">Recuperações aguardando validação</div><small class="muted">Nenhum bônus é concedido antes da aprovação do coordenador.</small></div><a href="{% url 'proofs' %}?status=AGUARDANDO_VALIDACAO">Abrir Central →</a></div>
+    <div class="table-wrap"><table><thead><tr><th>Enviado</th><th>Motorista</th><th>CT-e</th><th>Cliente</th></tr></thead><tbody>
+    {% for s in pending_recoveries %}<tr><td>{{ s.submitted_at|date:'d/m H:i' }}</td><td>{{ s.driver.name }}</td><td><a href="{% url 'proofs' %}?selected={{ s.proof_id }}">{{ s.proof.cte.ctrc }}</a></td><td>{{ s.proof.client.name }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Nenhuma recuperação aguardando validação.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
+</section>
+{% endblock %}

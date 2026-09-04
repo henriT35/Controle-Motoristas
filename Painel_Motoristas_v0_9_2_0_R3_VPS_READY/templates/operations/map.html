@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Mapa Operacional · Painel Motoristas{% endblock %}
+{% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js" defer></script>{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='Mapa Operacional' subtitle='Cobertura geográfica automática conforme as entregas do período' %}
+
+<section class="geo-shell geo-page-shell">
+  <form class="filter-bar geo-filter-bar" data-geo-filters>
+    <label>Filial
+      <input type="text" name="branch" value="{{ active_branch }}" readonly>
+    </label>
+    <label>De<input type="date" name="start" value="{{ selected_start|date:'Y-m-d' }}"></label>
+    <label>Até<input type="date" name="end" value="{{ selected_end|date:'Y-m-d' }}"></label>
+    <label>Métrica
+      <select name="metric" data-live>
+        {% for metric in geo_metrics %}<option value="{{ metric.key }}">{{ metric.label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Motorista
+      <select name="driver" data-live><option value="">Todos</option>{% for driver in drivers %}<option value="{{ driver.pk }}">{{ driver.name }}</option>{% endfor %}</select>
+    </label>
+    <input type="hidden" name="level" value="auto">
+    <input type="hidden" name="parent_state" value="">
+    <input type="hidden" name="parent_city" value="">
+    <button class="btn btn-primary" type="submit"><i data-lucide="search"></i>Aplicar</button>
+    <button class="btn" type="button" data-geo-back hidden><i data-lucide="arrow-left"></i>Voltar a municípios</button>
+  </form>
+
+  <section class="geo-kpi-strip">
+    <article><span>Tentativas</span><b data-geo-summary="attempts">0</b></article>
+    <article><span>Entregas</span><b data-geo-summary="delivered">0</b></article>
+    <article><span>Sucesso</span><b data-geo-summary="success_rate" data-format="percent">0%</b></article>
+    <article><span>Retenções</span><b data-geo-summary="retentions">0</b></article>
+    <article><span title="Entrega prejudicada pelo horário (ocorrência 13 no SSW)">Horário</span><b data-geo-summary="time_window_failures">0</b></article>
+    <article><span>Entrega limpa</span><b data-geo-summary="clean_delivery_rate" data-format="percent">0%</b></article>
+  </section>
+
+  <section class="geo-main-grid">
+    <article class="panel geo-map-panel">
+      <div class="panel-heading geo-panel-heading">
+        <div>
+          <div class="panel-title">Cobertura por <span data-geo-level-label>região</span></div>
+          <small class="muted">O mapa se adapta automaticamente à concentração das entregas. Clique numa região para detalhar.</small>
+        </div>
+        <button class="geo-quality-pill geo-quality-button" type="button" data-geo-unresolved hidden></button>
+      </div>
+      <div class="geo-map-stage">
+        <div class="geo-map geo-map-full" data-geo-map data-api="{% url 'geo_summary_api' %}"></div>
+        <div class="geo-state" data-geo-state>Carregando cobertura geográfica…</div>
+        <aside class="geo-detail" data-geo-detail hidden></aside>
+      </div>
+      <div class="geo-map-caption"><span class="geo-live-dot"></span> Geometria e métricas são carregadas separadamente para manter a tela leve.</div>
+    </article>
+
+    <aside class="geo-side-stack">
+      <article class="panel">
+        <div class="panel-title" data-ranking-title>Top 5 Regiões</div>
+        <div class="geo-ranking" data-geo-ranking><div class="geo-empty-small">Carregando ranking…</div></div>
+      </article>
+      <article class="panel">
+        <div class="panel-title">Alertas por Região</div>
+        <div class="geo-alerts" data-geo-alerts><div class="geo-empty-small">Analisando amostra…</div></div>
+      </article>
+      <article class="panel geo-summary-panel">
+        <div class="panel-title">Resumo do período</div>
+        <div><span>Clientes</span><b data-geo-summary="clients">0</b></div>
+        <div><span>Peso</span><b data-geo-summary="weight_kg" data-format="weight">0 kg</b></div>
+        <div><span>Taxa de retenção</span><b data-geo-summary="retention_rate" data-format="percent">0%</b></div>
+        <div><span>Taxa de horário</span><b data-geo-summary="time_window_rate" data-format="percent">0%</b></div>
+        <div><span>Comprovantes ativos</span><b data-geo-summary="active_proofs">0</b></div>
+      </article>
+    </aside>
+  </section>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/geo_map.js' %}?v=0.9.2.0" defer></script>{% endblock %}

@@ -1,0 +1,80 @@
+PAINEL MOTORISTAS v0.6.0.3 — ONLINE + WHATSAPP QR/SESSAO
+
+MODO ONLINE SEM DOMINIO
+-----------------------
+1) Execute EXECUTAR_ONLINE.bat.
+2) O launcher baixa/detecta o cloudflared, cria uma URL https://*.trycloudflare.com e abre o Painel.
+3) A URL fica salva em local_data\online_url.txt. Para abrir/copiar novamente, use ABRIR_LINK_ONLINE.bat.
+4) Para encerrar Painel + tunel, use PARAR_ONLINE.bat.
+5) Se a senha admin ainda for Painel@2026!, ela será substituida automaticamente antes da primeira publicacao; consulte local_data\ONLINE_ADMIN.txt.
+
+IMPORTANTE: a URL do Quick Tunnel e temporaria e muda quando o tunel for recriado.
+
+
+WHATSAPP — PRIMEIRA ABERTURA APOS v0.6.0.3
+--------------------------------------------
+Se a versao anterior ficou presa em "reconectar" / "erro no banco de dados do navegador":
+1) Abra WhatsApp Motoristas.
+2) Clique Redefinir sessao uma vez.
+3) Clique Conectar WhatsApp.
+4) Escaneie o QR novo.
+
+A v0.6.0.3 detecta e reconstrói automaticamente uma sessao/IndexedDB corrompida uma vez.
+
+MODO LOCAL
+----------
+Use EXECUTAR_LOCAL.bat quando nao quiser acesso pela Internet.
+
+PAINEL MOTORISTAS v0.3.0.9 — WATCHDOG IMPORT & RETENCAO CTRC
+
+Este ZIP já contém a base 0.2.2, Caderno de Bugs, Robô SSW homologado p13.6 e o novo Import Engine v2.
+NÃO aplique patches p13 antigos por cima deste pacote.
+
+1) Extraia a pasta inteira.
+2) Execute EXECUTAR_LOCAL.bat.
+3) Login do Painel: admin / Painel@2026!
+
+PARA PREPARAR/VALIDAR O ROBÔ SSW:
+4) PREPARAR_ROBO_HOMOLOGADO.bat
+5) CONFIGURAR_CREDENCIAIS_SSW.bat
+6) TESTAR_CORE_ROBO_HOMOLOGADO.bat
+7) VERIFICAR_BRIDGE_P13.bat
+8) TESTAR_INTEGRACAO_ROBO_SSW.bat
+
+HOMOLOGAÇÃO DO ROBÔ EM ETAPAS (quando necessário):
+9) TESTAR_LOGIN_ROBO_HOMOLOGADO.bat
+10) TESTAR_OPCAO_036.bat
+11) TESTAR_CONSULTA_036.bat
+12) TESTAR_DOWNLOAD_036.bat
+
+PERFORMANCE / SAÚDE:
+13) TESTAR_PERFORMANCE_V0_3_0.bat
+14) BENCHMARK_IMPORTACAO_SSW.bat
+
+Import Engine padrão: v2.
+Rollback temporário: defina SSW_IMPORT_ENGINE=v1 no .env.local.
+
+Banco local de testes: SQLite.
+Banco oficial/alvo: PostgreSQL.
+
+
+V0.3.0.4 - ANTES DO PRIMEIRO USO DO ROBO
+------------------------------------------
+Execute TESTAR_RESILIENCIA_SSW_V0_3_0_4.bat.
+Se a fila estiver pausada, consulte /ssw/importacoes/ ou execute:
+  python manage.py ssw_queue_control status
+O retry de erro deve ser feito pelo botao "Reprocessar somente esta janela" no Historico.
+
+
+V0.3.0.8 - APOS ATUALIZAR UMA BASE ANTIGA
+-------------------------------------------
+Execute RECONCILIAR_COMPROVANTES_SSW_V0_3_0_8.bat uma vez.
+Ele corrige datas de retenção que foram gravadas como data de importação e marca como recuperados os comprovantes cujo CTRC posterior já está ENTREGUE.
+Baixas manuais são preservadas.
+
+
+V0.3.0.9 - WATCHDOG
+- Nao altere robot_ssw.
+- Timeout do robo e do importador sao independentes.
+- Padroes: SSW_ROBOT_TIMEOUT_SECONDS=900 e SSW_IMPORT_TIMEOUT_SECONDS=3600.
+- Depois de aplicar, reprocessar apenas a janela que falhou.

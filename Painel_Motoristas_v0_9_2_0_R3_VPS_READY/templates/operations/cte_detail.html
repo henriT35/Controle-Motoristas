@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load format_br %}
+{% block title %}CT-e {{ cte.ctrc }} · Painel Motoristas{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='Detalhes do CT-e' subtitle='Documento, tentativas, ocorrências e comprovante em uma única linha do tempo' %}
+
+<section class="cte-detail-page">
+  <article class="panel cte-hero">
+    <div><small class="muted">CT-e</small><h2>{{ cte.ctrc }}</h2><p>NF {{ cte.invoice_number|default:'Não informada' }} · {{ cte.client.name|default:'Cliente não informado' }}</p></div>
+    <div class="cte-hero-status"><span class="chip {% if cte.delivered_at %}chip-green{% else %}chip-warning{% endif %}">{{ cte.current_status|default:'Status não informado' }}</span><a class="btn" href="{{ return_url }}"><i data-lucide="arrow-left"></i>Voltar</a></div>
+  </article>
+
+  <section class="cte-summary-grid">
+    <article class="panel"><small>Frete</small><b>{{ cte.freight_value|brl }}</b></article>
+    <article class="panel"><small>Mercadoria</small><b>{{ cte.merchandise_value|brl }}</b></article>
+    <article class="panel"><small>Peso</small><b>{{ cte.weight_kg|floatformat:1 }} kg</b></article>
+    <article class="panel"><small>Volumes</small><b>{{ cte.volumes }}</b></article>
+    <article class="panel"><small>Tentativas</small><b>{{ attempt_count }}</b></article>
+    <article class="panel"><small>Entrega consolidada</small><b>{% if cte.delivered_at %}{{ cte.delivered_at|date:'d/m/Y H:i' }}{% else %}Não concluída{% endif %}</b></article>
+  </section>
+
+  <section class="two-col cte-main-grid">
+    <div class="side-stack">
+      <article class="panel">
+        <div class="panel-title">Tentativas e rotas</div>
+        <div class="cte-attempt-list">{% for m in movements %}<div class="cte-attempt-row"><div class="cte-attempt-head"><span><b>{{ m.manifest.number }}</b><small>Motorista {{ m.driver.name }} · placa {{ m.manifest.vehicle.plate|default:'—' }}</small></span>{% if m.operational_date_display %}<span class="chip {% if m.route_confidence_display == 'CONFIRMED' %}chip-green{% else %}chip-cyan{% endif %}">{{ m.operational_date_display|date:'d/m/Y' }} · {% if m.route_confidence_display == 'CONFIRMED' %}confirmada{% else %}inferida{% endif %}</span>{% else %}<span class="chip chip-warning">Data não confirmada</span>{% endif %}</div><div class="cte-attempt-meta"><span><small>Emissão</small><b>{{ m.manifest.date|date:'d/m/Y' }}</b></span><span><small>Cliente</small><b>{{ m.client.name|default:'—' }}</b></span><span><small>Endereço</small><b>{{ m.address.street|default:'—' }}</b></span><span><small>Bairro / cidade</small><b>{{ m.address.district|default:'—' }} · {{ m.address.city|default:'—' }}/{{ m.address.state|default:'—' }}</b></span><span><small>Peso / volumes</small><b>{{ m.weight_kg|floatformat:1 }} kg · {{ m.volumes }} vol.</b></span><span><small>Resultado</small><b>{{ m.occurrence_text|default:'Não informado' }}</b></span></div><a class="subtle-link" href="{% url 'manifest_detail' m.manifest.pk %}?date={{ m.operational_date_display|date:'Y-m-d' }}&next={{ request.get_full_path|urlencode }}">Abrir rota →</a></div>{% empty %}<p class="muted">Nenhuma tentativa vinculada.</p>{% endfor %}</div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title">Histórico de ocorrências</div>
+        <div class="cte-timeline">{% for o in occurrences %}<div class="cte-timeline-row"><span class="timeline-dot {% if o.source == 'SSW_ROMANEIO' %}rom{% else %}ctrc{% endif %}"></span><div><div><b>{{ o.code|default:'—' }} · {{ o.description|default:'Ocorrência sem descrição' }}</b><span class="chip {% if o.source == 'SSW_ROMANEIO' %}chip-cyan{% else %}chip-neutral{% endif %}">{% if o.source == 'SSW_ROMANEIO' %}ROMANEIO{% else %}CTRC{% endif %}</span></div><small>{% if o.occurred_at %}{{ o.occurred_at|date:'d/m/Y H:i' }}{% else %}Data não informada{% endif %}{% if o.movement and o.movement.manifest %} · {{ o.movement.manifest.number }}{% endif %}</small></div></div>{% empty %}<p class="muted">Sem ocorrências persistidas.</p>{% endfor %}</div>
+      </article>
+    </div>
+
+    <aside class="side-stack">
+      <article class="panel">
+        <div class="panel-title">Documento</div>
+        <div class="detail-list"><div><span>CT-e</span><b>{{ cte.ctrc }}</b></div><div><span>NF</span><b>{{ cte.invoice_number|default:'Não informado' }}</b></div><div><span>Remetente</span><b>{{ cte.sender_name|default:'Não informado' }}</b></div><div><span>Cliente</span><b>{{ cte.client.name|default:'Não informado' }}</b></div><div><span>CNPJ/CPF</span><b>{{ cte.client.cnpj|default:'Não informado' }}</b></div><div><span>Estado CTRC atual</span><b>{% if current_ctrc %}{{ current_ctrc.code }} · {{ current_ctrc.description }}{% else %}{{ cte.current_status|default:'Não informado' }}{% endif %}</b></div></div>
+      </article>
+
+      <article class="panel {% if proof %}accent-purple{% endif %}">
+        <div class="panel-title">Comprovante</div>
+        {% if proof %}<div class="detail-list"><div><span>Status</span><b>{{ proof.get_status_display }}</b></div><div><span>Origem da retenção</span><b>{% if proof_origin_date %}{{ proof_origin_date|date:'d/m/Y' }}{% else %}Data não confirmada{% endif %}</b></div><div><span>Motorista da retenção</span><b>{{ proof.original_driver.name }}</b></div><div><span>Dias retidos</span><b>{{ proof.days_retained }}</b></div><div><span>Motorista recuperador</span><b>{{ proof.recovery_driver.name|default:'Ainda não validado' }}</b></div><div><span>Recuperado em</span><b>{% if proof.recovered_at %}{{ proof.recovered_at|date:'d/m/Y H:i' }}{% else %}—{% endif %}</b></div></div><a class="btn btn-sm" href="{% url 'proofs' %}?selected={{ proof.pk }}">Abrir na Central de Comprovantes</a>{% else %}<p class="muted">Nenhuma retenção registrada para este CT-e.</p>{% endif %}
+      </article>
+
+      {% if submissions %}<article class="panel"><div class="panel-title">Evidências de recuperação</div><div class="compact-list">{% for sub in submissions %}<div><span><b>{{ sub.driver.name }}</b><small>{{ sub.get_source_display }} · {{ sub.submitted_at|date:'d/m/Y H:i' }}</small></span><span class="chip {% if sub.status == 'APPROVED' %}chip-green{% elif sub.status == 'REJECTED' %}chip-danger{% else %}chip-warning{% endif %}">{{ sub.get_status_display }}</span></div>{% endfor %}</div></article>{% endif %}
+    </aside>
+  </section>
+</section>
+{% endblock %}

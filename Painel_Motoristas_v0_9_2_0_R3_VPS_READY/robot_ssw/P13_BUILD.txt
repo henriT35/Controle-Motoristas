@@ -1,0 +1,4 @@
+Painel Motoristas v0.2.2-p13
+Integração do Robô SSW Homologado
+CORE original preservado sem alteração.
+API pública: from robot_ssw import run_job

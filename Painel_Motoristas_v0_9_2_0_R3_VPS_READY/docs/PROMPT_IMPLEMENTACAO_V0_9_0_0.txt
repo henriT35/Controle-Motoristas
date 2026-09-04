@@ -1,0 +1,1022 @@
+PROJETO: CONTROLE DOS MOTORISTAS
+VERSÃO ALVO: v0.9.0.0
+BASELINE DE ORIGEM: v0.8.2.0
+
+EXECUTE ESTA SOLICITAÇÃO COMPLETA DO INÍCIO AO FIM.
+
+Não interrompa o trabalho para enviar status parciais.
+Não entregue apenas patches de código soltos.
+Não pare depois de implementar uma parte.
+Não peça confirmação entre etapas que já estejam definidas neste prompt.
+
+Inspecione a baseline real, implemente todos os itens, faça QA, corrija os erros encontrados, atualize documentação/versionamento e somente ao final entregue:
+
+1. PATCH v0.9.0.0 aplicável sobre a v0.8.2.0.
+2. BASELINE COMPLETA v0.9.0.0.
+3. SHA-256 dos dois pacotes.
+4. Resumo do QA realmente executado.
+5. Lista curta do que ainda exigir homologação real em Windows/VPS/SSW/WhatsApp.
+
+REGRA CRÍTICA:
+O diretório/core homologado `robot_ssw` não deve ser alterado para resolver problemas de interface, scheduler, importação, ranking, mapa, WhatsApp ou deploy.
+Ao final compare os arquivos do robot_ssw byte a byte com a baseline de origem.
+Se for tecnicamente inevitável alterar o core, documente a causa e re-homologue explicitamente. Não faça alteração silenciosa.
+
+======================================================================
+1. OBJETIVO GERAL DA v0.9.0.0
+======================================================================
+
+Esta versão será uma rodada grande de:
+
+- repaginação visual;
+- responsividade;
+- simplificação das telas;
+- otimização severa de performance;
+- automação real do SSW;
+- Portal Web do Motorista;
+- novo ranking unificado;
+- novo fluxo de comprovantes retidos/recuperações;
+- oportunidades exatas e regionais;
+- melhorias no mapa operacional;
+- simplificação do WhatsApp;
+- preservação das correções temporais já homologadas.
+
+O sistema continua 100% WEB.
+NÃO criar aplicativo Android/iOS.
+
+======================================================================
+2. RESPONSIVIDADE / MONITORES MENORES
+======================================================================
+
+Corrigir definitivamente os problemas em resoluções menores.
+
+Problemas atuais:
+- sidebar pode esconder partes da página;
+- conta/admin no rodapé pode ficar cortada;
+- alguns cards ultrapassam a área disponível;
+- formulários/modais podem ficar atrás da sidebar;
+- tela de rotinas SSW possui formulário desalinhado/encoberto;
+- telas administrativas ficam ruins em monitores de menor altura/largura.
+
+Implementar:
+
+- layout responsivo real;
+- nenhum conteúdo importante atrás da sidebar;
+- sidebar com scroll interno quando necessário;
+- usuário/admin sempre acessível;
+- cards com grid adaptativo;
+- cabeçalhos e botões quebrando corretamente;
+- tabelas com estratégia responsiva;
+- modais centralizados na área útil;
+- modal com largura máxima responsiva;
+- scroll interno em formulário grande;
+- impedir overflow horizontal global;
+- testar pelo menos larguras equivalentes a:
+  1920,
+  1366,
+  1280,
+  1024,
+  tablet,
+  mobile do Portal.
+
+======================================================================
+3. GRÁFICO EVOLUÇÃO OPERACIONAL
+======================================================================
+
+O gráfico atual fica difícil de analisar em períodos grandes, principalmente um ano.
+
+Implementar:
+
+- botão AMPLIAR;
+- modo ampliado ocupando grande parte da área útil;
+- fechar com ESC;
+- zoom;
+- navegação pelo período;
+- seletor/range inferior;
+- pan/arraste quando aplicável;
+- botão "Todo período";
+- tooltip claro;
+- período anual utilizável;
+- reduzir excesso de pontos visuais sem perder os dados;
+- não agregar ou eliminar informação silenciosamente;
+- carregamento dos dados do gráfico separado da renderização inicial do Dashboard quando isso melhorar performance.
+
+O gráfico deve continuar clicável para abrir detalhes do dia.
+
+======================================================================
+4. PERFORMANCE / TEMPO DE CARREGAMENTO
+======================================================================
+
+Problema observado:
+trocar de Operação de Hoje para Dashboard pode levar mais de 10 segundos.
+
+A v0.9.0.0 deve atacar isso de verdade.
+Não resolver apenas com spinner.
+
+Investigar queries, N+1, reconstruções repetidas, processamento histórico, ranking, retenções, oportunidades e séries do gráfico.
+
+Implementar conforme necessário:
+
+- profiling interno de tempo;
+- logs das etapas lentas;
+- select_related/prefetch_related;
+- agregações no banco;
+- índices adequados;
+- evitar consultar a mesma informação repetidamente;
+- memoização dentro da mesma requisição;
+- cache por período;
+- Redis na VPS quando disponível;
+- fallback de cache local apropriado no modo Windows;
+- invalidação de cache após importação ou alteração operacional;
+- pré-processamento após importação SSW;
+- lazy loading para componentes pesados;
+- paginação;
+- evitar calcular ranking completo várias vezes na mesma navegação.
+
+Meta de projeto:
+navegação comum deve ficar próxima de instantânea sempre que houver dados previamente processados.
+
+Não afirmar que atingiu X segundos se não medir.
+Criar mecanismo/command/log para medir tempos reais.
+
+======================================================================
+5. AÇÕES EM SEGUNDO PLANO / NÃO MUDAR A TELA
+======================================================================
+
+Hoje algumas ações, especialmente "Atualizar agora", redirecionam o usuário para Importações SSW.
+
+Corrigir.
+
+Exemplo:
+usuário está em Operação de Hoje e clica Atualizar agora.
+
+Deve acontecer:
+
+- solicitação enviada;
+- toast/status visual;
+- usuário continua em Operação de Hoje;
+- job roda em background;
+- status atualiza sem refresh completo;
+- quando terminar, os dados pertinentes podem ser atualizados.
+
+Aplicar esse padrão a ações onde não existe necessidade real de navegação.
+
+Eliminar redirects desnecessários para `ssw_imports`.
+
+======================================================================
+6. ROTINAS AUTOMÁTICAS DO ROBÔ SSW
+======================================================================
+
+Simplificar muito a interface atual.
+
+Hoje a tela possui informações e blocos demais.
+
+Criar uma CENTRAL DE ROTINAS unificada.
+
+Cada rotina deve aparecer em uma linha/card compacto contendo:
+
+- nome;
+- ativa/inativa;
+- tipo do período;
+- período;
+- frequência;
+- janela diária;
+- próxima execução;
+- último resultado;
+- status.
+
+Ações:
+
+- Executar agora;
+- Editar;
+- Pausar/Ativar;
+- Excluir.
+
+Botão claro:
++ Nova rotina
+
+Criar/editar em modal centralizado responsivo.
+
+Tipos de rotina:
+
+A) JANELA RECENTE
+Exemplos:
+- hoje;
+- últimos 2 dias;
+- últimos 3 dias;
+- últimos 7 dias.
+
+Ideal para acompanhar rota diária e atualizações de ocorrências.
+
+B) PERÍODO FIXO
+Exemplo:
+01/01/2026 até 31/12/2026.
+
+Enquanto a data final estiver no futuro, consultar somente até a data atual.
+
+C) outras opções somente se fizerem sentido sem complicar a UX.
+
+Cada rotina deve permitir:
+
+- frequência em minutos/horas;
+- horário inicial diário;
+- horário final diário;
+- ativar/desativar.
+
+O scheduler precisa funcionar tanto:
+
+- no Windows pelos executores atuais;
+- quanto futuramente na VPS/Docker.
+
+Precisa existir heartbeat real.
+
+Um job SSW por vez.
+
+Se uma rotina vencer enquanto o robô já executa:
+não abrir outro Chromium concorrente.
+
+Executar agora entra na mesma fila protegida.
+
+Preservar logs detalhados.
+
+======================================================================
+7. WHATSAPP — CENTRAL UNIFICADA DE MOTORISTAS
+======================================================================
+
+Hoje a Central separa desnecessariamente:
+
+- motoristas da operação;
+- cadastros;
+- cadastros que precisam de atenção.
+
+Unificar tudo em UMA LISTA DE MOTORISTAS.
+
+Cada motorista deve possuir:
+
+- nome;
+- WhatsApp;
+- status do cadastro;
+- status do Portal;
+- se possui rota hoje;
+- última comunicação;
+- badges de atenção.
+
+Exemplos de badges:
+
+- Cadastro completo;
+- Requer atenção;
+- Sem telefone;
+- Telefone inválido;
+- Link ativo;
+- Link pendente;
+- Com rota hoje;
+- Mensagem enviada;
+- Falha no envio.
+
+Ações no próprio motorista:
+
+- Editar;
+- Perfil;
+- Gerar/Regerar link;
+- Copiar link;
+- Enviar WhatsApp.
+
+Manter filtros rápidos:
+Todos / Com rota / Requer atenção / Sem WhatsApp / Link pendente.
+
+Manter busca por nome.
+
+Preservar:
+"Gerar e enviar para todos".
+
+Preservar correção de telefone brasileiro com tentativa:
+55 + DDD + 9 + número
+e
+55 + DDD + número sem 9,
+consultando o JID válido quando necessário.
+
+======================================================================
+8. WHATSAPP — TELA DE QR CODE
+======================================================================
+
+Enxugar a tela.
+
+Hoje há uma caixa do QR e outra grande caixa apenas informando:
+"Aguardando o WhatsApp gerar o QR".
+
+Transformar em UM ÚNICO CARD.
+
+Dentro dele:
+
+- status do Baileys;
+- QR;
+- instruções curtas;
+- linha de status;
+- ações Encerrar / Novo pareamento / Voltar.
+
+Estados:
+
+- Iniciando;
+- Aguardando QR;
+- QR pronto;
+- Conectado;
+- Erro.
+
+Remover grande área vazia e painéis redundantes.
+
+Continuar usando Baileys/Node.js.
+Não voltar para Chrome/Edge/Playwright no WhatsApp.
+
+======================================================================
+9. OPERAÇÃO DE HOJE — RETIRADAS E OPORTUNIDADES
+======================================================================
+
+Nos cards de cada rota/motorista mostrar diretamente:
+
+- quantidade de RETIRADAS EXATAS;
+- quantidade de OPORTUNIDADES REGIONAIS.
+
+Os dois podem existir simultaneamente.
+
+Exemplo:
+
+JOSUÉ — BEL044708-1
+
+✓ 2 retiradas exatas
+🏆 5 oportunidades próximas
+
+Cada indicador deve ser clicável.
+
+Retirada exata:
+mostrar comprovantes vinculados diretamente a clientes/paradas daquela rota.
+
+Oportunidade regional:
+mostrar comprovantes próximos da região/caminho daquela rota.
+
+Adicionar também resumo superior, se útil:
+
+- retiradas exatas hoje;
+- oportunidades regionais;
+- motoristas com oportunidade.
+
+======================================================================
+10. MAPA OPERACIONAL / POLÍGONOS
+======================================================================
+
+Corrigir os problemas observados em Marituba, Abaetetuba e outras cidades.
+
+Problema importante:
+o resolvedor pode aceitar o polígono do MUNICÍPIO como se fosse o polígono de um BAIRRO com o mesmo nome.
+
+Isso não pode acontecer.
+
+Separar conceitualmente:
+
+MUNICÍPIO = malha municipal.
+BAIRRO = geometria de bairro, quando realmente resolvida.
+
+Implementar validação da geometria retornada.
+
+Nunca pintar município inteiro como bairro.
+
+Corrigir também:
+
+- cache `polygon_not_found`/`fetch_error` não pode bloquear tentativas para sempre;
+- permitir reprocessar falhas;
+- remover limite artificial de 25 bairros;
+- aliases/normalização de nomes;
+- corrigir variações conhecidas;
+- detectar nomes que claramente não são bairros;
+- não inventar geometria.
+
+Quando não houver polígono confiável:
+
+- continuar mostrando o bairro;
+- usar marcador/ponto quando possível;
+- fallback textual;
+- informar que não há polígono resolvido;
+- mapa não pode travar.
+
+Exemplos de valores que precisam de tratamento:
+ALMIR GABRIEL / ALMIR GRABRIEL
+PARQUE VERDE / PARK VERDE
+ZONA RURAL
+nome do próprio município no campo BAIRRO
+nomes de estabelecimento ou local que não sejam bairro.
+
+======================================================================
+11. NOVO PORTAL WEB DO MOTORISTA
+======================================================================
+
+Não criar APP.
+Tudo deve funcionar pelo navegador do celular.
+
+Cada motorista acessa por um link/token individual.
+
+O Portal deve ser redesenhado para incluir:
+
+- operação do motorista;
+- comprovantes;
+- oportunidades;
+- ranking;
+- perfil.
+
+Navegação mobile simples.
+
+O link continua revogável/regenerável.
+
+======================================================================
+12. SOLICITAÇÃO DE NOVO LINK DO PORTAL
+======================================================================
+
+Se o motorista perder o link:
+
+não depender apenas de ligar/mandar mensagem para o coordenador.
+
+Na tela de link inválido/expirado permitir:
+
+"Solicitar novo acesso"
+
+Criar solicitação para a Central.
+
+NÃO gerar automaticamente um token novo para qualquer pessoa sem validação.
+
+Coordenador deve visualizar:
+
+"Solicitações de novo link"
+
+e poder:
+
+- aprovar;
+- gerar novo token;
+- enviar via WhatsApp;
+- rejeitar.
+
+Registrar auditoria.
+
+======================================================================
+13. COMPROVANTE RETIDO — FOTO DA RESSALVA
+======================================================================
+
+Quando um comprovante ficar retido em uma entrega:
+
+o motorista deve conseguir abrir o CT-e no Portal e marcar:
+
+"Comprovante ficou retido"
+
+Permitir anexar foto da ressalva/papel/documento assinado pelo cliente.
+
+Guardar:
+
+- CT-e;
+- cliente;
+- motorista original;
+- romaneio;
+- data;
+- foto;
+- observação;
+- vínculo com ProofRetention.
+
+A foto passa a fazer parte da ficha daquele comprovante retido.
+
+Quando outro motorista receber oportunidade de retirada desse comprovante:
+ele consegue abrir a ficha e visualizar a ressalva.
+
+Não apagar `original_driver`.
+
+======================================================================
+14. FLUXO DE RETIRADA EXATA
+======================================================================
+
+Quando um motorista estiver indo a um cliente onde existe comprovante retido:
+
+mostrar RETIRADA EXATA.
+
+Ações:
+
+1. RETIREI
+- solicitar foto do comprovante;
+- criar recuperação pendente;
+- guardar `recovery_driver`;
+- não pontuar definitivamente até coordenador validar.
+
+2. AINDA NÃO LIBERADO
+- registrar tentativa;
+- permitir observação;
+- foto opcional;
+- motorista recebe ZERO penalização;
+- comprovante continua disponível para tentativa futura.
+
+3. NÃO FOI POSSÍVEL TENTAR
+- permitir justificativa;
+- registrar para auditoria;
+- não tratar automaticamente como falha grave sem contexto.
+
+Se a oportunidade exata foi simplesmente ignorada sem qualquer ação/justificativa:
+isso pode influenciar levemente a gestão de comprovantes.
+
+======================================================================
+15. OPORTUNIDADE REGIONAL = "OPORTUNIDADE DE OURO"
+======================================================================
+
+As oportunidades regionais são extras.
+
+O motorista já está passando pela região, mas aquela retirada não é obrigação direta da parada dele.
+
+Regra:
+
+- não tentou → neutro;
+- tentou e cliente não liberou → neutro;
+- não conseguiu → neutro;
+- recuperou e coordenador validou → BÔNUS MAIOR.
+
+Visualmente destacar como:
+
+🏆 OPORTUNIDADE DE OURO
+
+Nunca penalizar o motorista por não aproveitar uma oportunidade regional.
+
+======================================================================
+16. VALIDAÇÃO DO COORDENADOR
+======================================================================
+
+Recuperação informada pelo motorista não deve gerar ponto definitivo imediatamente.
+
+Fluxo:
+
+Motorista envia foto
+→ recuperação PENDENTE
+→ coordenador confere
+→ APROVA ou REJEITA
+→ se aprovado, pontuação é confirmada.
+
+Registrar:
+
+- quem recuperou;
+- quem validou;
+- data;
+- evidência;
+- histórico.
+
+Preservar sempre:
+original_driver != recovery_driver quando forem pessoas diferentes.
+
+======================================================================
+17. NOVA AVALIAÇÃO UNIFICADA DO MOTORISTA
+======================================================================
+
+Remover da experiência principal a confusão entre:
+
+- Qualidade;
+- Produtividade;
+- Confiança;
+- Ranking ajustado;
+- várias notas diferentes.
+
+Criar:
+
+NOTA GERAL DO MOTORISTA
+0 a 100.
+
+Produtividade bruta NÃO entra diretamente na nota.
+
+Não usar como vantagem:
+- quantidade absoluta de entregas;
+- quantidade de CT-es;
+- peso;
+- frete movimentado;
+- tamanho da carga.
+
+Motivo:
+os motoristas possuem veículos e distribuições de rota diferentes.
+
+Esses dados continuam disponíveis como ESTATÍSTICAS OPERACIONAIS, mas não definem qualidade.
+
+======================================================================
+18. COMPONENTES DA NOTA V3
+======================================================================
+
+Criar motor configurável.
+
+Defaults iniciais:
+
+GESTÃO DE COMPROVANTES: 50%
+QUALIDADE OPERACIONAL: 35%
+REGULARIDADE: 15%
+
+Pesos devem ficar configuráveis para futura calibração pela gestão.
+
+GESTÃO DE COMPROVANTES deve observar principalmente:
+
+- retenções corretamente documentadas;
+- retiradas exatas tratadas;
+- retirada exata recuperada;
+- tentativa "ainda não liberado";
+- oportunidade ignorada sem justificativa;
+- recuperações validadas;
+- oportunidades de ouro recuperadas;
+- tempo de recuperação;
+- crédito somente para quem realmente recuperou.
+
+QUALIDADE OPERACIONAL:
+
+- retenções originadas;
+- retorno por horário;
+- tentativas concluídas sem problemas relevantes;
+- ocorrências realmente atribuíveis ao motorista.
+
+IMPORTANTE:
+não penalizar múltiplas vezes o mesmo fato.
+
+Exemplo:
+código 13 não pode reduzir três componentes diferentes pela mesma ocorrência.
+
+Criar categorização de evento para uma falha produzir impacto coerente e auditável.
+
+REGULARIDADE:
+
+não medir volume.
+
+Medir consistência da qualidade ao longo das operações/período.
+
+A quantidade de amostra pode aumentar CONFIABILIDADE da leitura, mas não aumentar a nota só porque o motorista trabalhou mais.
+
+======================================================================
+19. SIMULADOR E CALIBRAÇÃO DA NOTA
+======================================================================
+
+Criar no painel administrativo/coordenador uma ferramenta para simular impacto.
+
+Selecionar motorista e mostrar:
+
+- nota atual;
+- posição atual;
+- efeito de uma retirada exata validada;
+- efeito de uma oportunidade de ouro validada;
+- possível posição projetada.
+
+Os bônus NÃO devem depender diretamente da quantidade total de comprovantes retidos naquele dia.
+
+Usar uma regra estável/configurável.
+
+Permitir calibrar os bônus.
+
+Valores como +0,3 ou +0,9 são referências visuais iniciais, NÃO devem ser hardcoded sem passar pelo motor de pontuação.
+
+Evitar que um motorista suba dezenas de posições apenas por uma rota excepcional.
+
+Criar teto/normalização de bônus dentro do período de avaliação.
+
+======================================================================
+20. MOTORISTA DEVE VER O PRÓPRIO RANKING
+======================================================================
+
+No Portal mostrar:
+
+- posição atual;
+- nota atual;
+- posição imediatamente acima;
+- quantos pontos faltam para subir;
+- barra de progresso.
+
+Exemplo:
+
+7º lugar
+Nota 84,2
+Faltam 0,8 para o 6º lugar.
+
+Permitir abrir Ranking.
+
+Não expor dados operacionais sensíveis desnecessários de outros motoristas.
+
+======================================================================
+21. IMPACTO DO COMPROVANTE NA NOTA
+======================================================================
+
+Ao motorista abrir uma oportunidade, mostrar uma PROJEÇÃO:
+
+Retirada exata:
+"Se validada, sua nota projetada será X"
+
+Oportunidade de ouro:
+"Se validada, sua nota projetada será Y"
+
+Se houver mudança potencial:
+"Posição projetada: 6º"
+
+Avisar discretamente:
+
+"Projeção considerando o ranking atual da equipe."
+
+A posição só muda oficialmente após validação.
+
+======================================================================
+22. HISTÓRICO / CONQUISTAS DO MOTORISTA
+======================================================================
+
+Criar área enxuta:
+
+Últimas conquistas
+
+Exemplos:
+
++ bônus — Comprovante de ouro — Validado hoje
++ bônus — Retirada exata — Validado ontem
+0,0 — Ainda não liberado — Sem penalização
+
+Motorista precisa enxergar claramente que:
+"Ainda não liberado" não prejudicou sua nota.
+
+======================================================================
+23. TOP 3 / INCENTIVOS
+======================================================================
+
+O sistema NÃO precisa pagar prêmio nem executar folha/pagamento.
+
+A premiação será decisão da gestão fora do sistema.
+
+Mas criar suporte para exibição/configuração:
+
+1º lugar — descrição do prêmio
+2º lugar — descrição do prêmio
+3º lugar — descrição do prêmio
+
+Exemplos meramente ilustrativos:
+Vale-compras
+Bônus
+Folga prêmio
+
+Gestão/coordenador configura os textos.
+
+Motorista vê:
+"Premiação do período"
+
+Admin vê:
+"Pódio do mês/período"
+
+======================================================================
+24. RANKING ADMINISTRATIVO
+======================================================================
+
+Criar/repaginar tela "Ranking e Incentivos dos Motoristas".
+
+Mostrar:
+
+- Top 3;
+- ranking geral;
+- nota;
+- retenções;
+- recuperações validadas;
+- tendência;
+- oportunidades de ouro recuperadas;
+- simulador de impacto;
+- configuração da premiação;
+- explicação simples da composição da nota.
+
+A experiência principal deve mostrar UMA NOTA.
+
+Detalhes internos aparecem somente quando usuário quiser entender a composição.
+
+======================================================================
+25. PRESERVAR REGRAS TEMPORAIS / RETENÇÃO v0.8.1.0
+======================================================================
+
+NÃO REGREDIR as correções já feitas.
+
+Preservar:
+
+- ROM34 é evidência principal da origem da retenção;
+- CTRC34 somente fallback quando não houver evidência ROM adequada;
+- original_manifest/original_driver precisam ser da tentativa correta;
+- código 13 encerra aquela tentativa;
+- tentativa antiga não reaparece na rota atual;
+- CTRC consolidado não pode promover todos os romaneios históricos;
+- estados ambíguos pós-retenção permanecem VERIFICAR;
+- entrega/conclusão comprovada pode liberar;
+- reconstrução histórica segura para ROM sem DATA OCORR ROM;
+- não usar data de importação para inventar data operacional;
+- não usar emissão como única data da rota;
+- preservar tentativas distintas.
+
+Criar regressão para esses casos.
+
+======================================================================
+26. CARDS DA OPERAÇÃO / EXPERIÊNCIA MAIS ENXUTA
+======================================================================
+
+Continuar a repaginação geral.
+
+Priorizar:
+Resumo → Clique → Detalhe.
+
+Evitar:
+- caixas repetidas;
+- texto demais;
+- blocos duplicados;
+- excesso de status que poderiam estar no mesmo card.
+
+Aplicar o mesmo princípio em:
+
+- Importações SSW;
+- Rotinas;
+- WhatsApp;
+- Portal;
+- Motoristas;
+- Ranking.
+
+======================================================================
+27. MIGRAÇÕES / BANCO
+======================================================================
+
+Criar migrations formais para novos campos/modelos.
+
+Não depender de `makemigrations` automático em produção como mecanismo de deploy.
+
+Adicionar índices necessários.
+
+Compatibilidade:
+
+- banco existente v0.8.2.0 deve atualizar sem apagar dados;
+- SQLite homologação;
+- PostgreSQL VPS.
+
+Criar data migration quando necessário.
+
+======================================================================
+28. SEGURANÇA DO PORTAL
+======================================================================
+
+Tokens:
+
+- aleatórios;
+- não previsíveis;
+- revogáveis;
+- regeneráveis.
+
+Solicitar novo link não pode revelar se qualquer telefone arbitrário existe na base de forma insegura.
+
+Rate limit quando aplicável.
+
+Uploads:
+
+- validar extensão/MIME/tamanho;
+- nomes seguros;
+- acesso controlado.
+
+Portal não pode permitir acesso aos comprovantes de outro motorista fora das regras de oportunidade/rota.
+
+======================================================================
+29. VPS / DOCKER / GITHUB
+======================================================================
+
+Preservar preparação:
+
+GitHub
+→ Hostinger VPS
+→ Docker Compose.
+
+Stack atual prevista:
+
+- Nginx;
+- Django/Gunicorn;
+- PostgreSQL;
+- Redis;
+- Celery Worker;
+- Celery Beat;
+- robot-worker SSW;
+- Node/Baileys.
+
+Sem domínio inicialmente.
+Acesso por IP da VPS.
+
+Containers devem subir automaticamente após reboot.
+
+Volumes persistentes:
+
+- PostgreSQL;
+- media;
+- sessão Baileys;
+- dados necessários.
+
+Nada sensível no Git:
+
+.env
+senhas
+credenciais
+sessão WhatsApp
+banco
+logs reais
+uploads reais.
+
+======================================================================
+30. QA OBRIGATÓRIO
+======================================================================
+
+Antes de empacotar:
+
+A) Python
+- compilar todos os .py;
+- django check quando ambiente permitir;
+- migrations check;
+- testes existentes;
+- testes novos.
+
+B) JavaScript
+- sintaxe;
+- controles principais;
+- ausência de referências inexistentes.
+
+C) Dados reais
+Usar novamente os imports reais já fornecidos para regressão das regras:
+- retenção;
+- ROM34;
+- código 13;
+- múltiplas tentativas;
+- reconstrução histórica;
+- operação diária.
+
+D) UI
+Verificar:
+- sidebar;
+- modal de rotina;
+- Dashboard;
+- gráfico ampliado;
+- WhatsApp;
+- Portal mobile;
+- ranking;
+- mapa.
+
+E) Performance
+Instrumentar tempos.
+
+Comparar pelo menos:
+- Dashboard;
+- Operação de Hoje;
+- Motoristas;
+- Comprovantes;
+- Ranking.
+
+Não inventar benchmark.
+Se não for possível executar navegador real, declarar exatamente o que foi e não foi medido.
+
+F) robot_ssw
+Comparação byte a byte com a baseline.
+
+G) Patch
+Aplicar o patch sobre uma cópia limpa da v0.8.2.0 e comparar o resultado esperado.
+
+======================================================================
+31. DOCUMENTAÇÃO
+======================================================================
+
+Atualizar:
+
+README
+CHANGELOG
+VERSION
+docs relevantes
+
+Criar documentação específica:
+
+docs/RANKING_V3.md
+docs/PORTAL_MOTORISTA.md
+docs/ROTINAS_SSW.md
+docs/PERFORMANCE.md
+
+Explicar claramente:
+
+- como a nota funciona;
+- o que penaliza;
+- o que é neutro;
+- o que gera bônus;
+- retirada exata;
+- oportunidade de ouro;
+- validação do coordenador;
+- como solicitar novo link;
+- como funciona o scheduler;
+- como medir performance.
+
+======================================================================
+32. ENTREGA FINAL
+======================================================================
+
+Somente finalizar quando tiver:
+
+Painel_Motoristas_v0_9_0_0_BASELINE_COMPLETA.zip
+
+PATCH_Painel_Motoristas_v0_9_0_0_COMPLETO.zip
+
+SHA-256 de ambos.
+
+O patch deve partir da v0.8.2.0.
+
+Na resposta final:
+
+- links dos arquivos;
+- resumo objetivo das mudanças;
+- QA realmente executado;
+- qualquer ponto que ainda dependa exclusivamente de homologação externa.
+
+NÃO entregue apenas instruções de como eu mesmo posso implementar.
+
+Implemente no programa.

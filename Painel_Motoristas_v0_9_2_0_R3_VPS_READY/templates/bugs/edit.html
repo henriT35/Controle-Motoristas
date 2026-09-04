@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Editar Bug #{{ bug.pk }} | Painel Motoristas{% endblock %}
+{% block content %}
+<header class="page-header"><div><span class="eyebrow">CADERNO DE BUGS</span><h1>Editar Bug #{{ bug.pk }}</h1><p>{{ bug.get_screen_display }} · criado em {{ bug.created_at|date:'d/m/Y H:i' }}</p></div><div class="header-actions"><a class="btn" href="{% url 'bugs' %}?selected={{ bug.pk }}"><i data-lucide="arrow-left"></i> Voltar</a></div></header>
+<section class="panel bug-create-panel">
+<form method="post" enctype="multipart/form-data" class="bug-form">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="bug-form-grid">
+    <label>Tela{{ form.screen }}{{ form.screen.errors }}</label><label>Prioridade{{ form.priority }}{{ form.priority.errors }}</label><label>Status{{ form.status }}{{ form.status.errors }}</label><label>Responsável{{ form.assigned_to }}{{ form.assigned_to.errors }}</label>
+    <label class="span-2">Título{{ form.title }}{{ form.title.errors }}</label><label class="span-2">URL/caminho{{ form.screen_path }}{{ form.screen_path.errors }}</label>
+    <label class="span-2">Descrição{{ form.description }}{{ form.description.errors }}</label><label>Resultado atual{{ form.current_result }}{{ form.current_result.errors }}</label><label>Resultado esperado{{ form.expected_result }}{{ form.expected_result.errors }}</label>
+    <label class="span-2">Passos para reproduzir{{ form.reproduction_steps }}{{ form.reproduction_steps.errors }}</label>
+    <label>Anexo / print{% if bug.attachment %}<small>Atual: <a href="{{ bug.attachment.url }}" target="_blank">{{ bug.attachment.name }}</a></small>{% endif %}{{ form.attachment }}{{ form.attachment.errors }}</label><label>Ambiente / navegador{{ form.browser_info }}{{ form.browser_info.errors }}</label>
+    <label class="span-2">Notas técnicas{{ form.technical_notes }}{{ form.technical_notes.errors }}</label><label class="span-2">Causa raiz confirmada{{ form.root_cause }}{{ form.root_cause.errors }}</label><label>Correção aplicada{{ form.resolution_notes }}{{ form.resolution_notes.errors }}</label><label>Versão da correção{{ form.fixed_version }}{{ form.fixed_version.errors }}</label><label class="span-2">Resultado do reteste{{ form.retest_notes }}{{ form.retest_notes.errors }}</label>
+  </div>
+  <div class="form-actions"><button class="btn btn-primary" type="submit"><i data-lucide="save"></i> Salvar alterações</button></div>
+</form>
+</section>
+{% endblock %}

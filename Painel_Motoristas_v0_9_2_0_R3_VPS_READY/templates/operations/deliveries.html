@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load format_br %}
+{% block title %}Entregas Gerais · Painel Motoristas{% endblock %}
+{% block content %}
+{% include 'components/header.html' with title='Entregas Gerais' subtitle='Consulta operacional de CT-es, tentativas, rotas e comprovantes' period_label=period_label %}
+
+<section class="deliveries-page">
+  <form class="panel deliveries-filter" method="get">
+    <div class="deliveries-filter-main">
+      <label class="grow">Busca
+        <input type="search" name="q" value="{{ request.GET.q }}" placeholder="CT-e, NF, cliente ou romaneio">
+      </label>
+      <label>Filial<input type="text" value="{{ active_branch }}" readonly></label>
+      <label>De<input type="date" name="start" value="{{ period_start|date:'Y-m-d' }}"></label>
+      <label>Até<input type="date" name="end" value="{{ period_end|date:'Y-m-d' }}"></label>
+      <label>Motorista<select name="driver"><option value="">Todos</option>{% for d in drivers %}<option value="{{ d.pk }}" {% if request.GET.driver == d.pk|stringformat:'s' %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
+      <label>Cidade<select name="city"><option value="">Todas</option>{% for c in cities %}<option value="{{ c }}" {% if request.GET.city == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+      <label>Bairro<select name="district"><option value="">Todos</option>{% for d in districts %}<option value="{{ d }}" {% if request.GET.district == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select></label>
+    </div>
+    <div class="deliveries-filter-more">
+      <label>Cliente<input type="text" name="client" value="{{ request.GET.client }}" placeholder="Nome do cliente"></label>
+      <label>Romaneio<input type="text" name="manifest" value="{{ request.GET.manifest }}" placeholder="BEL..."></label>
+      <label>Ocorrência<input type="text" name="occurrence" value="{{ request.GET.occurrence }}" placeholder="Código ou descrição"></label>
+      <label>Entrega<select name="delivery"><option value="">Todas</option><option value="delivered" {% if request.GET.delivery == 'delivered' %}selected{% endif %}>Entregues</option><option value="pending" {% if request.GET.delivery == 'pending' %}selected{% endif %}>Não concluídas</option></select></label>
+      <label>Tentativa<select name="attempt"><option value="">Todas</option><option value="first" {% if request.GET.attempt == 'first' %}selected{% endif %}>Primeira tentativa</option><option value="reentry" {% if request.GET.attempt == 'reentry' %}selected{% endif %}>Reentrega</option></select></label>
+      <label>Retenção<select name="retention"><option value="">Todas</option><option value="yes" {% if request.GET.retention == 'yes' %}selected{% endif %}>Com retenção</option><option value="no" {% if request.GET.retention == 'no' %}selected{% endif %}>Sem retenção</option></select></label>
+      <label>Comprovante<select name="proof_status"><option value="">Todos</option>{% for value,label in proof_statuses %}<option value="{{ value }}" {% if request.GET.proof_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>Ordenar<select name="order"><option value="date_desc" {% if request.GET.order == 'date_desc' or not request.GET.order %}selected{% endif %}>Data ↓</option><option value="date_asc" {% if request.GET.order == 'date_asc' %}selected{% endif %}>Data ↑</option><option value="client" {% if request.GET.order == 'client' %}selected{% endif %}>Cliente</option><option value="driver" {% if request.GET.order == 'driver' %}selected{% endif %}>Motorista</option><option value="cte" {% if request.GET.order == 'cte' %}selected{% endif %}>CT-e</option></select></label>
+      <div class="filter-actions"><button class="btn btn-primary" type="submit"><i data-lucide="filter"></i>Filtrar</button><a class="btn" href="{% url 'deliveries' %}">Limpar</a></div>
+    </div>
+    <div class="filter-foot"><span>Filial/base ativa: <b>{{ active_branch }}</b></span><span>Data operacional usa somente evidência canônica do SSW.</span></div>
+  </form>
+
+  <section class="kpi-grid five deliveries-kpis">
+    <article class="kpi"><span class="kpi-icon blue"><i data-lucide="files"></i></span><div><span>CT-es</span><strong>{{ total_ctes }}</strong></div></article>
+    <article class="kpi cyan"><span class="kpi-icon cyan"><i data-lucide="route"></i></span><div><span>Tentativas</span><strong>{{ total_attempts }}</strong></div></article>
+    <article class="kpi success"><span class="kpi-icon green"><i data-lucide="circle-check"></i></span><div><span>Entregues</span><strong>{{ total_delivered }}</strong></div></article>
+    <article class="kpi danger"><span class="kpi-icon red"><i data-lucide="package-x"></i></span><div><span>Com retenção</span><strong>{{ total_retained }}</strong></div></article>
+    <article class="kpi"><span class="kpi-icon purple"><i data-lucide="weight"></i></span><div><span>Peso</span><strong>{{ total_weight_t|floatformat:1 }} t</strong></div><small>{{ total_volumes }} volumes</small></article>
+  </section>
+
+  <article class="panel deliveries-table-panel">
+    <div class="panel-heading"><div><div class="panel-title">Movimentações</div><small class="muted">{{ page_obj.paginator.count }} linha{{ page_obj.paginator.count|pluralize }} com os filtros atuais · clique no CT-e para abrir a ficha completa</small></div></div>
+    <div class="table-wrap"><table class="deliveries-table"><thead><tr><th>Data operacional</th><th>CT-e / NF</th><th>Cliente</th><th>Motorista</th><th>Romaneio</th><th>Região</th><th>Peso / Vol.</th><th>Tentativas</th><th>Entrega</th><th>Comprovante</th></tr></thead><tbody>
+      {% for m in page_obj %}
+      <tr>
+        <td>{% if m.operational_date_display %}<b>{{ m.operational_date_display|date:'d/m/Y' }}</b><small class="table-sub">{% if m.route_confidence_display == 'CONFIRMED' %}Confirmada · 85{% else %}Inferida · primeiro fato ROM{% endif %}</small>{% else %}<span class="chip chip-warning">Não confirmada</span>{% endif %}</td>
+        <td><a class="cte-link" href="{% url 'cte_detail' m.cte.pk %}?next={{ request.get_full_path|urlencode }}"><b>{{ m.cte.ctrc }}</b><small>NF {{ m.cte.invoice_number|default:'Não informada' }}</small></a></td>
+        <td><b>{{ m.client.name|default:'Não informado' }}</b><small class="table-sub">{{ m.client.cnpj|default:'' }}</small></td>
+        <td>{{ m.driver.name }}</td>
+        <td><a href="{% url 'manifest_detail' m.manifest.pk %}?date={{ m.operational_date_display|date:'Y-m-d' }}&next={{ request.get_full_path|urlencode }}">{{ m.manifest.number }}</a><small class="table-sub">emitido {{ m.manifest.date|date:'d/m/Y' }}</small></td>
+        <td>{{ m.address.district|default:'—' }}<small class="table-sub">{{ m.address.city|default:'—' }}{% if m.address.state %}/{{ m.address.state }}{% endif %}</small></td>
+        <td>{{ m.weight_kg|floatformat:1 }} kg<small class="table-sub">{{ m.volumes }} vol.</small></td>
+        <td>{% if m.attempt_count_display > 1 %}<span class="chip chip-warning">{{ m.attempt_count_display }} · reentrega</span>{% else %}<span class="chip chip-cyan">1ª tentativa</span>{% endif %}</td>
+        <td>{% if m.delivered_display %}<span class="chip chip-green">Entregue</span>{% else %}<span class="chip chip-warning">Em acompanhamento</span>{% endif %}<small class="table-sub">{{ m.occurrence_text|default:'—' }}</small></td>
+        <td>{% if m.cte.retained_proof %}<span class="chip {% if m.cte.retained_proof.status == 'RECUPERADO' %}chip-green{% else %}chip-warning{% endif %}">{{ m.cte.retained_proof.get_status_display }}</span>{% else %}<span class="muted">Sem retenção</span>{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="10" class="empty-state">Nenhuma entrega encontrada para os filtros informados.</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% include 'components/pagination.html' %}
+  </article>
+</section>
+{% endblock %}

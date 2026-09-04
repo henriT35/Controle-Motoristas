@@ -1,0 +1,13 @@
+PAINEL MOTORISTAS — PATCH v0.6.0.1
+
+BASE OBRIGATÓRIA: v0.6.0.0
+
+1. Feche o Painel e qualquer janela/processo do Bot WhatsApp.
+2. Faça backup da pasta atual.
+3. Extraia este ZIP na raiz do Painel, substituindo os arquivos existentes.
+4. Inicie pelo EXECUTAR_LOCAL.bat.
+5. Faça Ctrl+F5 no navegador uma vez.
+6. Abra WhatsApp dos Motoristas e clique em Conectar WhatsApp.
+7. Aguarde o QR aparecer no Painel; se a sessão estiver presa, use Redefinir sessão.
+
+Este patch NÃO altera banco e NÃO altera robot_ssw.
