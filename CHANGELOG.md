@@ -1,5 +1,220 @@
 # Changelog
 
+## 0.9.2.0 — Avaliação V3 explicável, ROM13 manual e retenção pelo estado atual — 2026-09-03
+
+### Estabilização de performance R3 — período padrão aquecido + gráfico + diagnóstico por sessão
+- warmup passa a respeitar o `period_default` real (mês, 7d/30d/60d/90d, semana, ano etc.), evitando que o Dashboard abra em uma janela diferente daquela previamente aquecida;
+- payload da Evolução Operacional é pré-calculado no startup/pós-import, mantendo o gráfico lazy-loaded sem devolver ~2 s de processamento ao primeiro clique;
+- Entregas Gerais elimina N+1 do comprovante com `select_related("cte__retained_proof")` e reaproveita o conjunto de CT-es entregues já calculado, reduzindo queries redundantes;
+- executores Windows gravam `PERF session.start` depois do warmup, separando navegação real de preparação do sistema;
+- `PERFORMANCE_DIAGNOSTICO.bat` passa a mostrar por padrão somente a sessão atual, com última/média/máxima por tela, sem misturar medições antigas de 10–20 s;
+- `robot_ssw/` permanece byte a byte idêntico à R2.
+
+### Estabilização de performance R2 — snapshots persistentes + histórico de Retirada Exata
+- diagnóstico real no Windows confirmou Dashboard frio de até 17,15 s com SQL de apenas 0,42 s; o gargalo era o cálculo Python do Ranking (`ranking.movements` + `ranking.events`), enquanto o Dashboard quente já respondia em ~0,12 s;
+- `DriverScoreSnapshot` passa a armazenar a fotografia completa necessária ao Dashboard/Ranking, não apenas o breakdown explicativo;
+- em cache miss, `calculate_driver_metrics()` tenta a fotografia persistente antes de reconstruir movimentos, eliminando o custo de 10–17 s do usuário quando o cache global é invalidado;
+- snapshot é recalculado em startup/pós-import/validações e protegido por lock compartilhado para impedir cache stampede/reconstruções concorrentes;
+- `ImportRun` deixa de invalidar o cache global a cada simples mudança de estado; a importação já invalida explicitamente quando os fatos operacionais foram persistidos;
+- Qualidade agrega contagens ROM13 no banco por motorista/status antes de calcular a nota;
+- Regularidade de Retirada Exata passa a ser agrupada por **motorista + cliente/parada + data operacional**: vários comprovantes na mesma visita geram no máximo uma obrigação de Regularidade;
+- recuperação informada como `RETIREI` só cumpre definitivamente a Regularidade após aprovação; evidência pendente não penaliza e evidência rejeitada não permanece como cumprimento;
+- Retiradas Exatas são materializadas automaticamente pela rota desde 01/09/2026, inclusive se o motorista nunca abrir o Portal;
+- o backfill histórico usa somente provas que estavam determinísticamente ativas no dia e considera `CTe.delivered_at` para não criar falsa obrigação quando a baixa SSW foi reconciliada depois;
+- Central de Avaliações e KPI do Dashboard passam a contar omissões por parada/dia, não por número de comprovantes.
+
+### Hotfix de compatibilidade de índice — execução real Windows
+- corrige `models.E034` detectado pelo `manage.py makemigrations --check`/system check no Windows: o índice `proofs_opp_driver_date_kind_idx` possuía 31 caracteres e excedia o limite portável de 30 caracteres validado pelo Django;
+- renomeia o índice versionado para `proofs_opp_drv_date_kind_idx` (28 caracteres) tanto no model quanto na migration v0.9.2.0;
+- atualiza os contratos de QA para impedir regressão com nomes de índices acima de 30 caracteres;
+- não altera dados, regras de avaliação, `robot_ssw/` ou semântica do índice.
+
+### Avaliação dos motoristas
+- Nota Geral V3 permanece única em 0–100, com pesos padrão configuráveis: Gestão de Comprovantes 50%, Qualidade Operacional 35% e Regularidade 15%.
+- produtividade bruta (CT-es, entregas, peso, frete, volume, romaneios) continua apenas como estatística operacional e não aumenta a nota.
+- Qualidade Operacional passa a usar somente ROM13 validado manualmente pelo coordenador como responsabilidade do motorista; evento pendente/VERIFICAR/sem responsabilidade é neutro.
+- cada nova tentativa com novo ROM13 pode gerar nova avaliação; repetição do mesmo ROM13 na mesma tentativa é idempotente.
+- Regularidade deixa de ser 100 fixo e mede ações obrigatórias efetivamente apresentadas/cumpridas. Ouro ignorado é neutro.
+- Retirada Exata sem manifestação após o encerramento vira omissão de Regularidade; “Ainda não liberado” exige observação e “Não foi possível tentar” exige justificativa.
+- recuperação só pontua após validação e sempre para `recovery_driver`; `original_driver` permanece imutável como origem.
+
+### Portal e coordenação
+- Portal passa a explicar Nota Geral, três pilares, contribuição por peso, ROM13 negativos/neutros/pendentes, Regularidade, bônus e histórico de snapshots.
+- projeção de uma oportunidade usa a mesma fórmula V3, incluindo teto de bônus e efeito da Retirada Exata em Gestão/Regularidade.
+- nova Central de Avaliações permite ao coordenador classificar ROM13 como responsabilidade, sem responsabilidade ou VERIFICAR, com motivo visível obrigatório quando houver responsabilização e observação interna separada.
+- decisões podem ser reabertas/revertidas com auditoria e invalidação de cache.
+
+### Retenções / SSW
+- ROM34 passa a ser tratado definitivamente como origem histórica da retenção, não como penalização de Qualidade.
+- estado consolidado atual do CTRC governa a ação: 34 = retenção ativa; 1/ENTREGUE = resolvido automaticamente pelo SSW; outros estados = ACOMPANHANDO_SSW.
+- baixa automática por ENTREGUE não inventa `recovery_driver`, não concede bônus e registra `resolution_source=SSW`.
+- datas/horários técnicos inferidos não podem vetar uma baixa atual por ENTREGUE.
+- snapshots de relatórios importados fora de ordem não podem regredir o estado atual já observado em tentativa mais nova.
+- comando `reconcile_retained_proofs --dry-run` permite revisar a base existente antes de aplicar a reconciliação.
+- regressões reais BNU046259-4 e CWB055520-7 cobertas por QA de parser sobre 12 relatórios SSW reais (27.126 linhas).
+
+### Auditoria, cache e automação
+- eventos de qualidade, oportunidades apresentadas, omissões, ressalvas, validações, reaberturas e reconciliações deixam trilha auditável.
+- cache operacional é invalidado nas mudanças que afetam nota/retenção.
+- housekeeping diário fecha EXACT sem resposta, expira GOLD de forma neutra, sincroniza ROM13/ressalvas e persiste snapshots de nota.
+- `robot_ssw/` permanece congelado e fora das alterações funcionais.
+
+### QA / release
+- QA Python/estático, contrato do robô, JS, rotas/templates, Baileys, VPS e regressões reais executados no ambiente disponível.
+- Django runtime não está instalado no ambiente de empacotamento; `manage.py check`, `makemigrations --check`, migrations reais, suíte Django e homologações SSW/WhatsApp/VPS permanecem explicitamente como HOMOLOGAÇÃO EXTERNA PENDENTE.
+
+## 0.9.1.0 — Estabilização, homologação, performance e acabamento — 2026-09-03
+
+### Hotfix runtime do Dashboard / cache operacional
+- corrige `HTTP 500` confirmado em execução real no Windows ao abrir `/dashboard/`;
+- causa raiz: `apps/core/services.py` passou a usar `cache` e `versioned_key()` durante a otimização v0.9.1.0, mas os dois imports não haviam sido incluídos no módulo;
+- adiciona `from django.core.cache import cache` e `from .cache import versioned_key`;
+- nenhum model, migration, regra temporal ou arquivo de `robot_ssw/` foi alterado;
+- regressão estática do contrato v0.9.1.0 agora exige explicitamente esses imports para impedir retorno do `NameError`.
+
+### Integridade e regras operacionais
+- preserva ROM85 como evidência preferencial de saída, ROM34 como origem preferencial da retenção e CTRC34 apenas como fallback;
+- mantém código 13 encerrando a tentativa e impede promoção de romaneios históricos por CTRC consolidado;
+- amplia regressão permanente dos pós-retenção ambíguos para 60, 53 e 91, todos em `VERIFICAR` até evidência conclusiva;
+- mantém `original_driver` e `recovery_driver` separados e dá crédito de recuperação somente ao motorista que realmente recuperou após validação.
+
+### Ranking V3 e Portal
+- consolida uma única Nota Geral 0–100 com pesos padrão 50/35/15 configuráveis;
+- produtividade bruta permanece fora da nota e somente como estatística operacional;
+- normaliza uma causa principal de impacto por tentativa para evitar punição duplicada;
+- adiciona bônus configuráveis para recuperação exata e ouro, com teto;
+- Portal mostra posição, nota, distância para a posição superior e projeção de nota/posição;
+- adiciona solicitação de novo link, obrigatoriamente revisada por coordenador antes de regenerar acesso;
+- adiciona `ProofRetention` e `ProofPickupAttempt` para ressalva, retirada exata e Oportunidade de Ouro;
+- “Ainda não liberado” e oportunidade ouro ignorada não geram penalização automática.
+
+### Performance
+- adiciona instrumentação `PERF` por tela/componente;
+- adiciona cache operacional versionado, Redis em PostgreSQL/VPS e LocMem como fallback local;
+- invalidação centralizada após fatos operacionais e configuração do ranking;
+- série pesada da Evolução Operacional pode ser carregada separadamente;
+- memoização temporária das oportunidades exatas do dia;
+- Central WhatsApp evita carregar todo histórico de mensagens e busca apenas a mensagem mais recente por motorista.
+
+### SSW / UX
+- “Atualizar agora” usa AJAX/fetch e acompanha o job sem redirecionar o usuário;
+- Central de Rotinas mantém período recente/fixo, janela, frequência, próxima execução, heartbeat e ações;
+- modal/UX recebeu regras responsivas para telas menores;
+- migrations passam a ser formais; scripts deixam de criar migrations automaticamente.
+
+### WhatsApp / segurança
+- mantém Node.js + Baileys, sessão persistente e variações brasileiras com/sem o nono dígito;
+- Central WhatsApp mantém lista única por motorista;
+- QR permanece em card compacto único;
+- redirecionamentos baseados em `next` agora validam host para evitar open redirect;
+- solicitação pública de novo acesso recebe throttle leve e resposta genérica contra enumeração;
+- links enviados respeitam `PANEL_PUBLIC_BASE_URL`.
+
+### Mapa
+- reforça a regra absoluta MUNICÍPIO != BAIRRO;
+- rejeita geometria municipal/administrativa como bairro;
+- centraliza aliases como `ALMIR GRABRIEL → ALMIR GABRIEL` e `PARK VERDE → PARQUE VERDE`;
+- cache de erro expira e suporta retry;
+- remove o limite artificial de 25 bairros no pedido de geometria;
+- sem geometria confiável, mantém o dado operacional sem inventar polígono.
+
+### Correção de estabilização das migrations
+- corrige divergência observada no Windows em `makemigrations --check`, que sugeria apenas `RenameIndex` para índices já existentes;
+- a causa era o uso de nomes automáticos de `models.Index` nos models enquanto as migrations já tinham nomes versionados explícitos;
+- os models agora declaram exatamente os mesmos nomes dos índices existentes nas migrations, evitando gerar migrations cosméticas e preservando o banco atual;
+- não foi criada migration de rename e nenhum índice físico precisa ser renomeado por esta correção;
+- adicionada regressão estática específica para impedir o retorno desse drift.
+
+### QA e linhagem
+- `python compileall`, sintaxe Node/JS, QA portátil, fórmula V3, contratos estáticos, Baileys, telefone BR, VPS estático e mock do robô passaram no ambiente disponível;
+- core manifest do `robot_ssw` passou e a comparação integral com a árvore de origem é executada no empacotamento;
+- Django/Docker não estavam instalados no ambiente de empacotamento; runtime/migrations reais, benchmark HTTP, WhatsApp real, SSW real, UI multi-resolução e regressão com os 10 relatórios privados permanecem como homologação externa;
+- a árvore fornecida não contém baseline funcional oficial v0.9.0.0; o PATCH registra explicitamente a árvore de continuidade efetivamente usada como origem.
+- patch dry-run sobre cópia limpa da origem efetivamente fornecida produz árvore canônica idêntica à baseline v0.9.1.0 (0 diferenças de caminho/conteúdo); `robot_ssw` não entra no payload.
+
+---
+
+## 0.8.2.0 — UX responsiva, gráfico ampliável e rotinas SSW
+
+### Responsividade / navegação
+- Sidebar passa a reservar espaço fixo para a conta do usuário e torna a navegação interna rolável em telas de pouca altura, evitando que Configurações/Admin sejam encobertos.
+- Modo compacto reduz alturas e espaçamentos em monitores menores; a conta ganha identificação por tooltip quando a sidebar está recolhida por largura.
+- Conteúdo, painéis, KPIs e cabeçalhos recebem proteção extra contra overflow horizontal.
+
+### Dashboard / Evolução Operacional
+- Gráfico anual recebe `dataZoom` por roda do mouse/gesto e slider inferior.
+- Novo botão **Ampliar** abre o gráfico quase em tela cheia e `Esc` fecha.
+- Novo botão **Todo período** restaura o zoom 0–100%.
+- Séries densas deixam de desenhar todos os pontos ao mesmo tempo, preservando leitura e desempenho em períodos longos.
+
+### Automação SSW / causa raiz
+- A v0.8.1.0 tinha Celery Beat configurado para a VPS, mas `EXECUTAR_LOCAL.bat`/`EXECUTAR_ONLINE.bat` iniciavam somente o web server no Windows. Portanto o scheduler automático nunca ficava vivo no modo em que a homologação estava sendo feita.
+- Novo comando `run_ssw_scheduler` mantém a agenda ativa no Windows e é iniciado/parado junto com os scripts local/online.
+- `local_data/ssw_scheduler_state.json` registra heartbeat/último ciclo para a tela mostrar se o scheduler está realmente online.
+
+### Rotinas configuráveis
+- A configuração deixa de ser um único intervalo global e passa a aceitar múltiplas rotinas.
+- Cada rotina possui nome, tipo de período (`RECENT` ou `FIXED`), intervalo de 15–1440 min, janela diária e estado ativo/pausado.
+- `RECENT` é indicada para acompanhar as rotas do dia (ex.: últimos 2 dias a cada 2 horas).
+- `FIXED` permite manter um período maior sendo reconsultado; intervalos longos são quebrados em janelas mensais pela fila já existente.
+- Ciclo anterior ainda QUEUED/DISPATCHED/RUNNING bloqueia novo disparo da mesma rotina; o dispatcher global continua executando somente um robô por vez.
+- Botão **Executar agora** por rotina e botão rápido anterior permanecem disponíveis.
+- Configuração antiga `{enabled, interval_minutes}` é convertida automaticamente para uma rotina recente, sem migration.
+
+### Compatibilidade
+- Base do patch: **v0.8.1.0**.
+- Nenhuma migration/model novo nesta rodada.
+- Core `robot_ssw` permanece congelado e deve ser byte a byte idêntico à v0.8.1.0.
+- VPS continua usando Celery Beat; Windows usa o management command persistente com a mesma função `run_due_routines()`.
+
+## 0.8.1.0 — Correção temporal de rotas e retenções
+
+### Retenção / comprovantes
+- ROM `34 - MERCADORIA EM CONFERENCIA NO CLIENTE` passa a ser a evidência principal da tentativa que originou a retenção.
+- CTRC=34 continua válido como fallback de estado consolidado, mas não pode mais roubar o romaneio/motorista quando existir ROM34.
+- Bases antigas são reparáveis pelo novo comando `reconcile_operational_logic` / `RECONCILIAR_LOGICA_v0_8_1_0.bat`.
+- Novo status `VERIFICAR`: usado quando houve retenção e o CTRC mais recente mudou para um código não conclusivo (ex.: 60 DOCUMENTOS, 53 AVARIA, 91 INDENIZAÇÃO), sem prova de entrega nem de retenção ainda ativa.
+- Recuperação automática continua restrita a ocorrência de entrega comprovada; baixa manual validada continua soberana.
+
+### Reentrega / código 13
+- `13 - ENTREGA PREJUDICADA PELO HORARIO` agora fecha explicitamente aquela tentativa para o snapshot de rota atual.
+- `CTRC=85` não promove mais todos os romaneios históricos do CT-e. O resolver ao vivo escolhe no máximo uma tentativa elegível por CT-e.
+- O romaneio/motorista antigo permanece no histórico e no ranking da tentativa em que recebeu o 13; a nova tentativa pode pertencer a outro romaneio e outro motorista sem duplicar a rota diária.
+
+### Reconstrução histórica segura
+- Relatórios 036 antigos com `DATA OCORR ROM` vazia podem recuperar data operacional quando existe o MESMO fato ROM e CTRC datado de forma unívoca.
+- CTRC apenas completa a data de um fato ROM já existente; não cria tentativa.
+- Se o mesmo fato aparece em mais de uma tentativa, há múltiplas datas CTRC, ou o romaneio recebe dias conflitantes, nenhuma data é inventada.
+- Emissão, previsão e instante de importação continuam proibidos como fonte automática para reescrever o histórico operacional.
+- Dashboard, Operação e métricas de motorista passam a consumir a mesma reconstrução temporal.
+
+### QA com o lote real enviado em 02/09/2026
+- 10 relatórios / 25.145 linhas analisadas.
+- 1.378 CT-es com histórico de retenção; 15 casos reproduziram mudança de origem ao priorizar ROM34 sobre CTRC34.
+- 12 retenções terminaram em estado CTRC não conclusivo e entram na regra `VERIFICAR`.
+- 5 CT-es reproduziram o cenário de ROM13 antigo + nova tentativa/motorista com CTRC85, usado como regressão da duplicidade diária.
+- Reconstrução histórica encontrou mais de 1,2 mil romaneios com âncora segura; conflitos permanecem sem data automática.
+
+### Compatibilidade
+- Base do patch: **v0.8.0.1**.
+- Core `robot_ssw` permanece congelado e byte a byte idêntico à v0.8.0.1.
+- O novo status é uma escolha do campo existente; não adiciona coluna/tabela. O bootstrap local pode gerar a alteração de choices conforme o mecanismo já existente do projeto.
+
+## 0.8.0.1 — Hotfix inicialização SSW / require_POST
+
+### Causa raiz
+- A v0.8.0.0 adicionou os endpoints POST de configuração da automação SSW e de atualização imediata usando `@require_POST`, mas `apps/ssw/views.py` não importava `require_POST`.
+- O Django carregava `config/urls.py` durante `makemigrations`/`check` e interrompia o boot com `NameError: name 'require_POST' is not defined`.
+
+### Correção
+- Adicionado `from django.views.decorators.http import require_POST` em `apps/ssw/views.py`.
+- Adicionada checagem estática de decorators para impedir regressão equivalente no módulo SSW.
+- Nenhuma alteração de models/migrations, banco, WhatsApp, automação ou core do `robot_ssw`.
+
+### Compatibilidade
+- Base obrigatória do patch: **v0.8.0.0**.
+- `robot_ssw` permanece congelado e byte a byte idêntico à v0.8.0.0.
+
 ## 0.8.0.0 — VPS Hostinger, automação SSW e WhatsApp em lote
 
 ### VPS / GitHub
@@ -400,3 +615,16 @@
 - Chromium do Playwright passa a ser a primeira opção de navegador, reduzindo interferência de Chrome/Edge instalados, sync e extensões.
 - Novos metadados de diagnóstico: `profile_mode`, `profile_name` e estado `PAIRING_NEW_DEVICE`.
 - Sem migrations novas. `robot_ssw` não alterado.
+
+## v0.9.2.0 — estabilização de homologação / navegação rápida (03/09/2026)
+
+- Central de Avaliações passa a considerar oficialmente a Avaliação V3 a partir de **01/09/2026**; ROM13 anterior permanece histórico e não vira fila operacional.
+- Remove sincronização ROM13 do GET da Central de Avaliações.
+- Formulário ROM13 deixa de expandir dentro da tabela e passa para modal responsivo, corrigindo estouro/corte em 1366×768 e telas menores.
+- Dashboard e Comprovantes deixam de recalcular oportunidades no clique.
+- Cache Windows muda de LocMem isolado por processo para FileBased compartilhado entre Waitress, scheduler e comandos.
+- Reconstrução temporal canônica passa a ser materializada em cache uma vez por versão.
+- Matching de Retirada Exata/Ouro reduz o conjunto de comprovantes candidatos antes dos loops em Python.
+- Pós-import/startup pré-aquece ranking, KPIs e oportunidades usadas nas telas mais acessadas.
+- Nova instrumentação SQL/request e `PERFORMANCE_DIAGNOSTICO.bat` para medir gargalos no banco real.
+- `robot_ssw/` permanece congelado e sem alterações.

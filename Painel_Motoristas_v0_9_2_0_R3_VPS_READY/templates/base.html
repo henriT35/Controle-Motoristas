@@ -1,8 +1,0 @@
-{% load static %}
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{% block title %}Painel Motoristas{% endblock %}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'css/app.css' %}?v=0.9.2.0">
-<script src="https://unpkg.com/lucide@latest" defer></script>{% block head_scripts %}{% endblock %}
-</head><body data-accent="{{ system_settings.accent|default:'blue' }}" data-density="{{ system_settings.density|default:'comfortable' }}"><button class="mobile-nav-toggle" type="button" aria-controls="app-sidebar" aria-expanded="false"><i data-lucide="menu"></i><span>Menu</span></button><div class="sidebar-backdrop" aria-hidden="true"></div><div class="app-shell">{% include 'components/sidebar.html' %}<main class="main-content">{% if messages %}<div class="toast-stack">{% for message in messages %}<div class="toast {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% block content %}{% endblock %}</main></div><script src="{% static 'js/app.js' %}?v=0.9.2.0" defer></script>{% block scripts %}{% endblock %}</body></html>

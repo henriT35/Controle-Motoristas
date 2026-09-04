@@ -3,7 +3,8 @@ name: painel-motoristas
 x-django-env: &django-env
   DJANGO_DEBUG: "0"
   DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY}"
-  DJANGO_ALLOWED_HOSTS: "${PUBLIC_IP},localhost,127.0.0.1"
+  DJANGO_ALLOWED_HOSTS: "${PUBLIC_IP},localhost,127.0.0.1,web"
+  DJANGO_CSRF_TRUSTED_ORIGINS: "http://${PUBLIC_IP}"
   DJANGO_SECURE_COOKIES: "0"
   DJANGO_SECURE_SSL_REDIRECT: "0"
   DATABASE_MODE: postgres
@@ -13,10 +14,13 @@ x-django-env: &django-env
   DB_USER: "${POSTGRES_USER}"
   DB_PASSWORD: "${POSTGRES_PASSWORD}"
   REDIS_URL: "redis://redis:6379/0"
+  REDIS_CACHE_URL: "redis://redis:6379/1"
+  CACHE_TTL_SECONDS: "${CACHE_TTL_SECONDS:-900}"
   CELERY_TASK_ALWAYS_EAGER: "0"
   TZ: "${TZ:-America/Belem}"
   SERVE_PROTECTED_MEDIA: "1"
   PANEL_PUBLIC_BASE_URL: "http://${PUBLIC_IP}"
+  PERF_SQL_LOG: "${PERF_SQL_LOG:-0}"
   SSW_ROBOT_ENABLED: "1"
   SSW_ROBOT_DISPATCH_MODE: celery
   SSW_ROBOT_DIR: /app/robot_ssw
@@ -24,7 +28,7 @@ x-django-env: &django-env
   SSW_ROBOT_OPTION: "036"
   SSW_ROBOT_EXCEL: "S"
   SSW_AUTO_SYNC_ENABLED: "${SSW_AUTO_SYNC_ENABLED:-1}"
-  SSW_AUTO_SYNC_INTERVAL_MINUTES: "${SSW_AUTO_SYNC_INTERVAL_MINUTES:-60}"
+  SSW_AUTO_SYNC_INTERVAL_MINUTES: "${SSW_AUTO_SYNC_INTERVAL_MINUTES:-120}"
   WHATSAPP_BRIDGE_EXTERNAL_SERVICE: "1"
   WHATSAPP_BRIDGE_TRUSTED_INTERNAL: "1"
 
@@ -44,11 +48,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    stop_grace_period: 30s
 
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -56,6 +61,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    stop_grace_period: 20s
 
   web:
     build:
@@ -67,6 +73,14 @@ services:
       DJANGO_ADMIN_USERNAME: "${DJANGO_ADMIN_USERNAME:-admin}"
       DJANGO_ADMIN_PASSWORD: "${DJANGO_ADMIN_PASSWORD}"
       DJANGO_ADMIN_EMAIL: "${DJANGO_ADMIN_EMAIL:-admin@localhost}"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-3}"
+      GUNICORN_THREADS: "${GUNICORN_THREADS:-2}"
+      GUNICORN_TIMEOUT: "${GUNICORN_TIMEOUT:-120}"
+      GUNICORN_MAX_REQUESTS: "${GUNICORN_MAX_REQUESTS:-1000}"
+      GUNICORN_MAX_REQUESTS_JITTER: "${GUNICORN_MAX_REQUESTS_JITTER:-100}"
+      STARTUP_RECONCILE: "${STARTUP_RECONCILE:-1}"
+      STARTUP_SYNC_EVALUATION: "${STARTUP_SYNC_EVALUATION:-1}"
+      STARTUP_WARMUP: "${STARTUP_WARMUP:-1}"
     command: ["bash", "/app/scripts/docker/web-entrypoint.sh"]
     volumes:
       - local_data:/app/local_data
@@ -82,7 +96,8 @@ services:
       interval: 15s
       timeout: 7s
       retries: 12
-      start_period: 30s
+      start_period: 60s
+    stop_grace_period: 45s
 
   worker:
     build:
@@ -90,7 +105,17 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment: *django-env
-    command: ["celery", "-A", "config", "worker", "-Q", "celery", "--loglevel=INFO", "--concurrency=2", "--hostname=worker@%h"]
+    command:
+      - celery
+      - -A
+      - config
+      - worker
+      - -Q
+      - celery
+      - --loglevel=INFO
+      - --concurrency=${CELERY_WORKER_CONCURRENCY:-2}
+      - --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-200}
+      - --hostname=worker@%h
     volumes:
       - local_data:/app/local_data
       - media_data:/app/media
@@ -100,6 +125,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    stop_grace_period: 45s
 
   beat:
     build:
@@ -116,6 +142,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    stop_grace_period: 30s
 
   robot-worker:
     shm_size: "1gb"
@@ -145,6 +172,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    stop_grace_period: 60s
 
   whatsapp:
     build:
@@ -161,6 +189,13 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "/bridge/healthcheck.mjs"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    stop_grace_period: 30s
 
   nginx:
     image: nginx:1.27-alpine
@@ -172,6 +207,13 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz/ >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 20s
 
 volumes:
   postgres_data:

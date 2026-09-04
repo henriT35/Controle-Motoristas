@@ -1,32 +1,31 @@
-PAINEL MOTORISTAS v0.7.1.1 — BUILD VERIFICATION
+PAINEL MOTORISTAS v0.9.2.0 — BUILD VERIFICATION
 
-Escopo do hotfix: instalador Windows do Baileys / Node portátil.
+VERIFICAR_BUILD.bat é o verificador Windows da release.
 
-Executado no ambiente de empacotamento:
-- Python sintaxe: PASS — 179 arquivos
-- JavaScript/whatsapp_bridge server.mjs node --check: PASS
-- scripts/qa/portable_qa.py: PASS — 6/6
-- WhatsApp Baileys static QA: PASS
-- WhatsApp installer static QA: PASS — PATH + npm_node_execpath + limpeza parcial presentes
-- robot_ssw: PASS — 17/17 arquivos idênticos à v0.7.1.0
-- migrations novas: nenhuma; models não alterados
+QA portátil desta versão cobre:
+- sintaxe Python;
+- JavaScript via node --check quando Node existir;
+- contrato estático v0.9.1 e v0.9.2;
+- migrations versionadas/índices explícitos (v0.9.1 + v0.9.2);
+- temporalidade ROM85/ROM34/13;
+- retenção por estado atual do CTRC;
+- integridade do robot_ssw;
+- adapter mock da opção 036;
+- templates/rotas;
+- Baileys/telefone;
+- VPS estática.
 
-Causa confirmada pelo log Windows recebido:
-- Node portátil foi baixado e executado por caminho absoluto;
-- npm iniciou normalmente;
-- lifecycle script do Baileys chamou `node` pelo shell;
-- tools/node não estava no PATH herdado e o subprocesso abortou.
+Com Django instalado o verificador também exige:
+- manage.py check;
+- makemigrations --check --dry-run;
+- migrate --plan;
+- suíte crítica Django.
 
-Não executado neste ambiente:
-- PowerShell Windows real;
-- npm install real no Windows;
-- conexão/QR real do Baileys;
-- manage.py check / makemigrations --check / suíte django.test.
+A release não executa makemigrations automaticamente no boot.
+A reconciliação de retidos deve ser testada com --dry-run antes da aplicação.
+HOMOLOGAÇÃO EXTERNA PENDENTE permanece obrigatória para SSW real, WhatsApp real, PostgreSQL/VPS, UI real e benchmarks HTTP/cache frio-quente quando não executados no ambiente de empacotamento.
 
-Na instalação Windows:
-1. aplique o patch v0.7.1.1 sobre uma instalação cujo VERSION seja 0.7.1.0;
-2. feche o Painel/bot;
-3. execute INSTALAR_BOT_WHATSAPP.bat novamente;
-4. confirme a linha `PATH: node.exe disponivel (...)`;
-5. confirme `INSTALACAO CONCLUIDA`;
-6. abra WhatsApp Motoristas > Conectar / QR Code > Gerar QR Code.
+HOTFIX pós-empacotamento validado no Windows:
+- corrigido E034 de nome de índice > 30 caracteres em ProofPickupOpportunity;
+- nome atual: proofs_opp_drv_date_kind_idx;
+- reexecutar VERIFICAR_BUILD.bat/EXECUTAR_ONLINE.bat no ambiente Windows real.

@@ -9,13 +9,13 @@ set FAIL=0
 set RUNTIME_PENDING=0
 
 echo ============================================================
-echo PAINEL MOTORISTAS - VERIFICADOR v0.6.0.1
+echo PAINEL MOTORISTAS - VERIFICADOR v0.9.2.0
 echo ============================================================
 if exist VERSION.txt (
   set /p VERSION=<VERSION.txt
   echo VERSION: !VERSION!
-  if /i not "!VERSION!"=="0.6.0.1" (
-    echo [FAIL] VERSION.txt nao corresponde a v0.6.0.1.
+  if /i not "!VERSION!"=="0.9.2.0" (
+    echo [FAIL] VERSION.txt nao corresponde a v0.9.2.0.
     set FAIL=1
   )
 ) else (
@@ -30,11 +30,19 @@ echo [1/8] Python / QA portatil / core homologado
 if errorlevel 1 (echo [FAIL] portable_qa & set FAIL=1) else echo [PASS] sintaxe Python + invariantes do importador + core SSW
 
 echo.
-echo [2/8] Performance estatica e formula da avaliacao V2
+echo [2/8] Performance estatica e formula da avaliacao V3
 %PY% scripts\qa\test_performance_static.py
 if errorlevel 1 (echo [FAIL] performance_static & set FAIL=1) else echo [PASS] performance_static
 %PY% scripts\qa\test_performance_formula.py
 if errorlevel 1 (echo [FAIL] performance_formula & set FAIL=1) else echo [PASS] performance_formula
+%PY% scripts\qa\test_v091_contract_static.py
+if errorlevel 1 (echo [FAIL] contrato_v091 & set FAIL=1) else echo [PASS] contrato_v091
+%PY% scripts\qa\test_v092_contract_static.py
+if errorlevel 1 (echo [FAIL] contrato_v092 & set FAIL=1) else echo [PASS] contrato_v092
+%PY% scripts\qa\test_v092_formula.py
+if errorlevel 1 (echo [FAIL] formula_v092 & set FAIL=1) else echo [PASS] formula_v092
+%PY% scripts\qa\test_migrations_v091_static.py
+if errorlevel 1 (echo [FAIL] migrations_v091_static & set FAIL=1) else echo [PASS] migrations_v091_static
 
 echo.
 echo [3/8] Adapter/contrato do robo homologado
@@ -77,9 +85,9 @@ if errorlevel 1 (
 
   %PY% manage.py makemigrations --check --dry-run
   if errorlevel 1 (
-    echo [PENDENTE] Ha migrations ainda nao geradas.
-    echo O launcher local herdado gera migrations quando detecta mudanca dos models.
-    echo Gere/aplique em BANCO DE HOMOLOGACAO e rode este verificador novamente.
+    echo [FAIL] Ha migrations ainda nao versionadas.
+    echo Nao gere migrations automaticamente em producao.
+    echo Gere/revise em desenvolvimento, aplique em BANCO DE HOMOLOGACAO e rode novamente.
     set FAIL=1
   ) else (
     echo [PASS] Nenhuma migration pendente.
@@ -114,7 +122,7 @@ if !BAD! EQU 1 (set FAIL=1) else echo [PASS] Nenhum artefato local proibido dete
 
 echo.
 echo [8/8] Estrutura essencial
-for %%F in (README.md CHANGELOG.md VERSION VERSION.txt requirements.txt manage.py RELEASE_MANIFEST.txt docs\QA_RELEASE.md docs\BUGS_CAUSA_RAIZ.md docs\AVALIACAO_MOTORISTAS.md docs\COMPROVANTES.md docs\OPERACAO_DIARIA.md docs\RELATORIO_FINAL_V0_6_0_1.md docs\WHATSAPP_BOT_V1.md docs\QA_RELEASE_V0_6_0_1.md INSTALAR_BOT_WHATSAPP.bat INICIAR_BOT_WHATSAPP.bat) do (
+for %%F in (README.md CHANGELOG.md VERSION VERSION.txt requirements.txt manage.py RELEASE_MANIFEST.txt docs\QA_RELEASE.md docs\QA_RELEASE_V0_9_2_0.md docs\RANKING_V3.md docs\PORTAL_MOTORISTA.md docs\ROTINAS_SSW.md docs\PERFORMANCE.md docs\VPS_HOSTINGER_GITHUB.md docs\REGRAS_PARA_PROXIMO_AGENTE.md docs\AVALIACAO_V3_EXPLICAVEL.md docs\VALIDACAO_ROM13.md docs\REGULARIDADE.md docs\RETENCOES_SSW.md CONTEXTO_MESTRE_PROXIMO_CHAT_PAINEL_MOTORISTAS_v0_9_2_0.md INSTALAR_BOT_WHATSAPP.bat INICIAR_BOT_WHATSAPP.bat) do (
   if not exist "%%F" (
     echo [FAIL] Arquivo essencial ausente: %%F
     set FAIL=1
